@@ -1,10 +1,11 @@
-const CACHE_NAME = "flip-finder-v1";
+const CACHE_NAME = "flip-finder-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./manifest.webmanifest",
   "./src/app.js",
+  "./src/ai.js",
   "./src/db.js",
   "./src/logic.js",
   "./assets/icon-192.png",

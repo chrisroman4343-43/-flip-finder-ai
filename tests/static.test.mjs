@@ -17,8 +17,11 @@ test("manifest icons and core PWA files exist", async () => {
     "styles.css",
     "sw.js",
     "src/app.js",
+    "src/ai.js",
     "src/db.js",
     "src/logic.js",
+    "netlify.toml",
+    "netlify/functions/ai.mts",
     ...manifest.icons.map((icon) => icon.src.replace(/^\.\//, ""))
   ];
   await Promise.all(expected.map((path) => access(resolve(root, path))));
@@ -34,6 +37,17 @@ test("the public evaluation prompt uses generic defaults and no numbered street 
   assert.match(prompt, /Your local used market/);
   assert.match(prompt, /50 km of your home area/);
   assert.doesNotMatch(prompt, /\b\d{1,5}\s+[A-Za-z]+\s+(Drive|Street|Road|Avenue)\b/i);
+});
+
+test("the free AI integration keeps credentials out of public code", async () => {
+  const client = await readFile(resolve(root, "src/ai.js"), "utf8");
+  const server = await readFile(resolve(root, "netlify/functions/ai.mts"), "utf8");
+  const ignore = await readFile(resolve(root, ".gitignore"), "utf8");
+  assert.match(client, /\/api\/ai/);
+  assert.match(server, /Netlify\.env\.get\("GITHUB_MODELS_TOKEN"\)/);
+  assert.match(server, /openai\/gpt-4\.1-mini/);
+  assert.doesNotMatch(`${client}\n${server}`, /github_pat_[A-Za-z0-9_]{20,}/);
+  assert.match(ignore, /^\.env$/m);
 });
 
 test("the static app shell is served with its required assets", async (context) => {

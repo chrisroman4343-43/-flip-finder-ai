@@ -18,20 +18,6 @@ page.on("console", (message) => {
   if (message.type() === "error") errors.push(`console: ${message.text()}`);
 });
 
-await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
-await page.getByRole("heading", { name: "Spot it. Check it. Flip it." }).waitFor();
-assert.equal(await page.locator(".project-card").count(), 2);
-await page.screenshot({ path: "tests/home-mobile.png", fullPage: true });
-
-await page.getByRole("link", { name: /Evaluate a Find/ }).first().click();
-await page.getByLabel("Upload screenshots").setInputFiles("assets/icon-512.png");
-await page.getByLabel("Asking price (CAD)").fill("10");
-await page.getByLabel("Your temporary item name").fill("Test wooden box");
-await page.getByLabel("Seller description").fill("Small used wooden storage box with visible printing.");
-await page.getByRole("button", { name: "Create AI Prompt" }).click();
-await page.getByRole("heading", { name: "Evaluate this find" }).waitFor();
-await page.getByRole("button", { name: "Close" }).click();
-
 const result = {
   suggestedName: "Printed wooden storage box",
   category: "Vintage storage",
@@ -62,10 +48,37 @@ const result = {
   summary: "Promising low-cost flip if the box is dry, solid and free of pests."
 };
 
-await page.getByLabel("2. Paste ChatGPT’s complete answer").fill(JSON.stringify(result));
-await page.getByRole("button", { name: "Import Evaluation" }).click();
+await page.route("**/api/ai", async (route) => {
+  const request = route.request();
+  const body = request.postDataJSON();
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      output: body.mode === "analysis" ? JSON.stringify(result) : "Check the structure, odour, moisture, pests and original markings before buying.",
+      model: "openai/gpt-4.1-mini",
+      remaining: 149
+    })
+  });
+});
+
+await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
+await page.getByRole("heading", { name: "Spot it. Check it. Flip it." }).waitFor();
+assert.equal(await page.locator(".project-card").count(), 2);
+await page.screenshot({ path: "tests/home-mobile.png", fullPage: true });
+
+await page.getByRole("link", { name: /Evaluate a Find/ }).first().click();
+await page.getByLabel("Upload screenshots").setInputFiles("assets/icon-512.png");
+await page.getByLabel("Asking price (CAD)").fill("10");
+await page.getByLabel("Your temporary item name").fill("Test wooden box");
+await page.getByLabel("Seller description").fill("Small used wooden storage box with visible printing.");
+await page.getByRole("button", { name: "Evaluate with AI" }).click();
 await page.getByText("Buy", { exact: true }).waitFor();
 await page.getByText("$85", { exact: true }).waitFor();
+await page.getByRole("button", { name: "What Should I Check?" }).click();
+await page.getByRole("heading", { name: "What Should I Check?" }).waitFor();
+await page.getByRole("button", { name: "Save and Close" }).click();
+await page.getByText(/Check the structure, odour/).waitFor();
 await page.screenshot({ path: "tests/item-mobile.png", fullPage: true });
 
 assert.deepEqual(errors, []);

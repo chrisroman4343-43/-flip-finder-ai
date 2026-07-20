@@ -218,7 +218,7 @@ function cleanText(value, fallback = "Not provided") {
 }
 
 export function buildAnalysisPrompt(item, settings = DEFAULT_SETTINGS) {
-  return `You are the analysis engine for my personal resale app, Flip Finder AI. Evaluate the item in the photos I attach to this ChatGPT message. If I have not attached the photos yet, tell me to attach them before analysing.
+  return `You are the analysis engine for my personal resale app, Flip Finder AI. Evaluate the supplied item photos and saved information. If no photo is supplied, give a preliminary text-only answer and clearly list the photos or facts needed for greater confidence.
 
 MY FLIPPING RULES
 - Currency: Canadian dollars
@@ -250,7 +250,7 @@ ANALYSIS RULES
 3. Never present an uncertain brand, model, material, age, condition or value as confirmed.
 4. Look for labels, markings, model numbers, missing pieces, damage, mould, pests, rust, cracks, stains and safety concerns.
 5. Use conservative local used-market values for the market stated above, not retail or antique-store asking prices.
-6. If you can browse, favour recent relevant local comparisons. If you cannot verify comparisons, say so in the summary and lower confidence.
+6. You do not have verified live Marketplace or Kijiji comparable sales. Never invent them. Treat every resale range as a conservative preliminary estimate, say that in the summary, and lower confidence when model, condition or local demand is unclear.
 7. Recommend only inexpensive improvements that are likely to add more value than they cost. Preserve original labels, patina and collectible features.
 8. Do not recommend unsafe electrical, structural or professional restoration work.
 9. Use numbers without dollar signs inside the JSON.
@@ -315,8 +315,8 @@ const ACTION_REQUESTS = {
   supplies: "Make a minimal, inexpensive supply list for the worthwhile cleaning and repair tasks. Do not include expensive tools.",
   photos: "Give exact honest iPhone product-photo instructions: location, background, light direction, camera height, angles, defects, labels, measurements and photo order. Do not hide damage or invent features.",
   listing: "Write a complete, honest Facebook Marketplace and Kijiji listing with title, description, price, lowest acceptable price, measurements, defects, keywords and pickup wording. Do not publish it.",
-  "buyer-reply": "Write a short, natural reply to the buyer message I will paste after this request. Protect my lowest acceptable price and do not promise a hold unless I approve it.",
-  offer: "Evaluate the buyer offer I will paste after this request. Compare it with my costs and targets, then recommend accept, counter or decline.",
+  "buyer-reply": "Write a short, natural reply to the buyer message I provide in this item chat. If it is missing, ask me for it. Protect my lowest acceptable price and do not promise a hold unless I approve it.",
+  offer: "Evaluate the buyer offer I provide in this item chat. If it is missing, ask me for it. Compare it with my costs and targets, then recommend accept, counter or decline.",
   "lower-price": "Decide whether I should reduce, refresh, relist, bundle, part out or keep the price. Ask me for listing age and buyer interest if they are missing.",
   profit: "Calculate final cash profit, profit per hour, ROI and days to sell. Ask for any missing sale or expense number instead of guessing."
 };
@@ -352,23 +352,23 @@ MY RULES
 - Maximum investment ${formatMoney(settings.maxInvestment)} only when profit is highly likely
 - ${cleanText(settings.riskLevel)} risk
 
-Be concise, conservative and honest. Clearly mark uncertainty. Do not invent live comparable sales or claim to see photographs unless I attach them to this ChatGPT message.`;
+Be concise, conservative and honest. Clearly mark uncertainty. Do not invent live comparable sales or claim to see details that are not visible in the supplied photographs.`;
 }
 
 export function extractAnalysisJson(rawText) {
   const input = String(rawText || "").trim();
-  if (!input) throw new Error("Paste the answer from ChatGPT first.");
+  if (!input) throw new Error("The AI returned an empty evaluation. Try again.");
   const firstBrace = input.indexOf("{");
   const lastBrace = input.lastIndexOf("}");
   if (firstBrace < 0 || lastBrace <= firstBrace) {
-    throw new Error("I could not find the JSON result. Ask ChatGPT to return only the requested JSON object.");
+    throw new Error("The AI evaluation was not in the expected format. Try again.");
   }
 
   let parsed;
   try {
     parsed = JSON.parse(input.slice(firstBrace, lastBrace + 1));
   } catch {
-    throw new Error("The pasted result is incomplete or not valid JSON. Copy the complete ChatGPT answer and try again.");
+    throw new Error("The AI evaluation was incomplete. Try again with fewer photos.");
   }
 
   const numericFields = [

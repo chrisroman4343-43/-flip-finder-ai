@@ -63,7 +63,7 @@ test("serious mould risk overrides potential profit", () => {
   assert.equal(personalizedDecision(item, DEFAULT_SETTINGS).verdict, "Avoid");
 });
 
-test("ChatGPT JSON can be extracted from surrounding text", () => {
+test("AI evaluation JSON can be extracted from surrounding text", () => {
   const parsed = extractAnalysisJson('Result: {"suggestedName":"Drill","confidence":"medium","asIsLow":"40","visibleFacts":["Cord visible"]} done');
   assert.equal(parsed.suggestedName, "Drill");
   assert.equal(parsed.confidence, "Medium");

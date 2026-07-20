@@ -2,3 +2,7 @@ node_modules/
 .playwright/
 *.zip
 .DS_Store
+.env
+.env.*
+!.env.example
+.netlify/

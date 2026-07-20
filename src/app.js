@@ -25,6 +25,7 @@ import {
   numberValue,
   personalizedDecision
 } from "./logic.js";
+import { requestAi } from "./ai.js";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -35,8 +36,6 @@ const state = {
   settings: { ...DEFAULT_SETTINGS },
   draftPhotos: [],
   projectFilter: "all",
-  promptText: "",
-  promptTitle: "",
   toastTimer: null
 };
 
@@ -252,7 +251,7 @@ function renderHome() {
     <section class="hero-card">
       <p class="eyebrow">Your personal flipping assistant</p>
       <h1>Spot it. Check it. Flip it.</h1>
-      <p>Upload a Marketplace or Kijiji screenshot, apply your personal profit rules, and keep the entire flip in one place.</p>
+      <p>Upload a Marketplace or Kijiji screenshot, get an AI decision, and keep the entire flip in one place.</p>
       <a class="primary-button" href="#evaluate">＋ Evaluate a Find</a>
     </section>
 
@@ -269,7 +268,7 @@ function renderHome() {
     ${needsDecision.length ? `<div class="project-list">${needsDecision.map(projectCard).join("")}</div>` : emptyState("✓", "Nothing waiting", "Every open find has an evaluation.")}
 
     <section class="section-heading"><h2>Active flips</h2><a href="#projects">See all</a></section>
-    ${activeProjects.length ? `<div class="project-list">${activeProjects.map(projectCard).join("")}</div>` : emptyState("↗", "No active flips yet", "Evaluate a find and paste the ChatGPT result to begin.")}
+    ${activeProjects.length ? `<div class="project-list">${activeProjects.map(projectCard).join("")}</div>` : emptyState("↗", "No active flips yet", "Evaluate a find and let the built-in AI create your first report.")}
   `;
 }
 
@@ -324,7 +323,7 @@ function renderProjects() {
     default: break;
   }
   return `
-    <div class="page-head"><p class="eyebrow">Saved locally</p><h1>Your projects</h1><p>Every find keeps its own photos, decision, expenses and ChatGPT history prompts.</p></div>
+    <div class="page-head"><p class="eyebrow">Saved locally</p><h1>Your projects</h1><p>Every find keeps its own photos, decision, expenses and AI conversation.</p></div>
     <div class="filter-row" aria-label="Project filters">
       ${filters.map(([key, label]) => `<button class="filter-chip ${state.projectFilter === key ? "active" : ""}" data-action="set-filter" data-filter="${key}" type="button">${label}</button>`).join("")}
     </div>
@@ -379,7 +378,7 @@ function renderEvaluate() {
       <div class="sticky-actions">
         <div class="button-row">
           <button class="secondary-button" type="submit" name="mode" value="draft">Save Draft</button>
-          <button class="primary-button" type="submit" name="mode" value="analysis">Create AI Prompt</button>
+          <button class="primary-button" type="submit" name="mode" value="analysis">Evaluate with AI</button>
         </div>
       </div>
     </form>
@@ -446,12 +445,11 @@ function renderItem(id) {
     </section>
 
     <section class="card">
-      <div class="card-head"><div><h2>AI notes and history</h2><p>Paste useful ChatGPT answers here so future prompts remember them.</p></div></div>
-      ${(item.aiHistory || []).length ? `<div>${[...(item.aiHistory || [])].reverse().map((entry) => `<div class="analysis-tier"><div class="card-head" style="margin-bottom:.35rem"><div><h3>${escapeHtml(entry.title || "ChatGPT answer")}</h3><p>${escapeHtml(new Date(entry.createdAt).toLocaleDateString("en-CA"))}</p></div><button class="mini-delete" data-action="remove-ai-note" data-item-id="${escapeHtml(item.id)}" data-note-id="${escapeHtml(entry.id)}" type="button" aria-label="Delete AI note">×</button></div><p>${escapeHtml(entry.response)}</p></div>`).join("")}</div>` : `<p>No answers saved yet. Your main imported evaluation is already stored separately.</p>`}
-      <form id="ai-history-form" data-item-id="${escapeHtml(item.id)}" style="margin-top:13px">
-        <label class="field"><span>Answer title</span><input name="title" placeholder="Example: Inspection checklist" /></label>
-        <label class="field" style="margin-top:13px"><span>Paste ChatGPT answer or useful note</span><textarea name="response" required placeholder="Paste the useful answer here"></textarea></label>
-        <button class="quiet-button button-wide" style="margin-top:12px" type="submit">Save to This Item</button>
+      <div class="card-head"><div><h2>Ask Flip Finder AI</h2><p>Ask naturally. Every answer stays with this item.</p></div><span class="ai-live-pill">AI inside app</span></div>
+      ${(item.aiHistory || []).length ? `<div class="ai-thread">${[...(item.aiHistory || [])].reverse().map((entry) => `<div class="ai-exchange"><div class="card-head" style="margin-bottom:.35rem"><div><h3>${escapeHtml(entry.title || "AI answer")}</h3><p>${escapeHtml(new Date(entry.createdAt).toLocaleDateString("en-CA"))}</p></div><button class="mini-delete" data-action="remove-ai-note" data-item-id="${escapeHtml(item.id)}" data-note-id="${escapeHtml(entry.id)}" type="button" aria-label="Delete AI answer">×</button></div>${entry.question ? `<div class="chat-question">${escapeHtml(entry.question)}</div>` : ""}<div class="chat-answer">${escapeHtml(entry.response)}</div></div>`).join("")}</div>` : `<p>No AI conversation yet. Use a quick action or ask your own question below.</p>`}
+      <form id="ai-chat-form" data-item-id="${escapeHtml(item.id)}" style="margin-top:13px">
+        <label class="field"><span>Your question</span><div class="input-with-action"><textarea name="question" required placeholder="Example: What should I inspect before buying this?"></textarea><button class="voice-button" data-action="voice" data-field="question" type="button" aria-label="Speak question">🎙</button></div></label>
+        <button class="primary-button button-wide" style="margin-top:12px" type="submit">Ask AI</button>
       </form>
     </section>
 
@@ -500,20 +498,16 @@ function renderItem(id) {
 
 function renderAnalysisHandoff(item) {
   return `<section class="card">
-    <div class="card-head"><div><h2>Run the free AI evaluation</h2><p>No API charge. Your item is already saved.</p></div></div>
-    <ol class="steps"><li>Copy the custom evaluation prompt.</li><li>Open ChatGPT Plus and attach the same item photos.</li><li>Send it, copy the complete JSON answer, then return here.</li></ol>
-    <button class="primary-button button-wide" data-action="analysis-prompt" data-item-id="${escapeHtml(item.id)}" type="button">1. Copy Evaluation Prompt</button>
-    <form id="import-analysis-form" data-item-id="${escapeHtml(item.id)}" style="margin-top:15px">
-      <label class="field"><span>2. Paste ChatGPT’s complete answer</span><textarea class="prompt-box" name="analysisResult" placeholder='{ "suggestedName": "..." }'></textarea></label>
-      <button class="secondary-button button-wide" style="margin-top:11px" type="submit">Import Evaluation</button>
-    </form>
+    <div class="card-head"><div><h2>Run your AI evaluation</h2><p>The app sends your saved details and up to four photos to the free GitHub Models service.</p></div><span class="ai-live-pill">Free tier</span></div>
+    <div class="notice">No copying or pasting. The result returns directly to this project. AI value ranges are estimates, not confirmed comparable sales.</div>
+    <button class="primary-button button-wide" style="margin-top:13px" data-action="run-analysis" data-item-id="${escapeHtml(item.id)}" type="button">Evaluate This Item</button>
   </section>`;
 }
 
 function renderAnalyzedSummary(item, analysis, financials) {
   return `
     <section class="card">
-      <div class="card-head"><div><h2>Evaluation report</h2><p>${escapeHtml(analysis.summary || analysis.mainReason || "Evaluation imported from ChatGPT.")}</p></div><span class="confidence-pill">${escapeHtml(analysis.confidence)} confidence</span></div>
+      <div class="card-head"><div><h2>Evaluation report</h2><p>${escapeHtml(analysis.summary || analysis.mainReason || "Evaluation generated by Flip Finder AI.")}</p></div><span class="confidence-pill">${escapeHtml(analysis.confidence)} confidence</span></div>
       ${detailRow("Opening offer", formatMoney(analysis.openingOffer))}
       ${detailRow("Maximum price", formatMoney(analysis.maxPurchasePrice))}
       ${detailRow("As-is resale", `${formatMoney(analysis.asIsLow)}–${formatMoney(analysis.asIsHigh)}`)}
@@ -522,7 +516,7 @@ function renderAnalyzedSummary(item, analysis, financials) {
       ${detailRow("Biggest risk", analysis.biggestRisk || "Not stated")}
       ${detailRow("Best strategy", analysis.bestStrategy || "Not stated")}
       ${detailRow("Next step", analysis.nextStep || "Not stated")}
-      <button class="quiet-button button-wide" style="margin-top:12px" data-action="analysis-prompt" data-item-id="${escapeHtml(item.id)}" type="button">Run Evaluation Again</button>
+      <button class="quiet-button button-wide" style="margin-top:12px" data-action="run-analysis" data-item-id="${escapeHtml(item.id)}" type="button">Run Evaluation Again</button>
     </section>
 
     <section class="card">
@@ -533,8 +527,8 @@ function renderAnalyzedSummary(item, analysis, financials) {
     </section>
 
     <section class="card">
-      <div class="card-head"><div><h2>Ask about this item</h2><p>Each button makes a prompt containing this project’s saved information.</p></div></div>
-      <div class="quick-action-grid">${QUICK_ACTIONS.map(([key, label]) => `<button class="quick-action" data-action="quick-prompt" data-prompt-action="${key}" data-item-id="${escapeHtml(item.id)}" type="button">${escapeHtml(label)}</button>`).join("")}</div>
+      <div class="card-head"><div><h2>Quick AI help</h2><p>Tap once. The answer is generated here and saved with this project.</p></div></div>
+      <div class="quick-action-grid">${QUICK_ACTIONS.map(([key, label]) => `<button class="quick-action" data-action="quick-ai" data-prompt-action="${key}" data-item-id="${escapeHtml(item.id)}" type="button">${escapeHtml(label)}</button>`).join("")}</div>
     </section>
   `;
 }
@@ -584,9 +578,11 @@ function renderSettings() {
     </section>
 
     <section class="card">
-      <div class="card-head"><div><h2>Privacy and cost</h2><p>No subscription and no paid API connection.</p></div></div>
+      <div class="card-head"><div><h2>Privacy and cost</h2><p>Free, rate-limited AI for this personal prototype.</p></div></div>
       ${detailRow("Project storage", "On this device")}
-      ${detailRow("AI connection", "Copy prompt to ChatGPT Plus")}
+      ${detailRow("AI connection", "GitHub Models through a secure function")}
+      ${detailRow("AI model", "OpenAI GPT-4.1-mini")}
+      ${detailRow("Paid overages", "Disabled; free limit stops instead")}
       ${detailRow("Automatic scraping", "Disabled")}
       ${detailRow("Publishing messages", "Never automatic")}
       <button class="secondary-button button-wide" style="margin-top:12px" data-action="install-help" type="button">iPhone Installation Instructions</button>
@@ -594,25 +590,6 @@ function renderSettings() {
 
     ${examplesExist ? `<section class="card"><h2>Example projects</h2><p>Remove the demonstration drill kit and bookcase when you no longer need them.</p><button class="danger-button button-wide" data-action="remove-examples" type="button">Remove Example Projects</button></section>` : ""}
   `;
-}
-
-function openPromptModal(title, prompt, photoCount = 0) {
-  state.promptTitle = title;
-  state.promptText = prompt;
-  modalRoot.innerHTML = `<div class="modal-backdrop" data-action="close-modal">
-    <section class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="prompt-title" data-modal-sheet>
-      <div class="modal-handle"></div>
-      <p class="eyebrow">Free ChatGPT handoff</p>
-      <h2 id="prompt-title">${escapeHtml(title)}</h2>
-      <ol class="steps"><li>Tap Copy Prompt below.</li><li>Open ChatGPT and attach the same ${photoCount || "item"} photo${photoCount === 1 ? "" : "s"} when the request depends on pictures.</li><li>Paste the prompt and send it.</li></ol>
-      <label class="field"><span>Prepared prompt</span><textarea id="prompt-text" class="prompt-box" readonly>${escapeHtml(prompt)}</textarea></label>
-      <div class="button-row" style="margin-top:12px">
-        <button class="primary-button" data-action="copy-prompt" type="button">Copy Prompt</button>
-        <button class="secondary-button" data-action="open-chatgpt" type="button">Open ChatGPT</button>
-      </div>
-      <button class="quiet-button button-wide" style="margin-top:10px" data-action="close-modal" type="button">Close</button>
-    </section>
-  </div>`;
 }
 
 function openInstallModal() {
@@ -663,6 +640,64 @@ async function saveAndRefresh(item, message) {
   if (message) showToast(message);
 }
 
+function openAiAnswerModal(title, answer) {
+  modalRoot.innerHTML = `<div class="modal-backdrop" data-action="close-modal">
+    <section class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="ai-answer-title" data-modal-sheet>
+      <div class="modal-handle"></div>
+      <p class="eyebrow">Flip Finder AI</p>
+      <h2 id="ai-answer-title">${escapeHtml(title)}</h2>
+      <div class="chat-answer modal-answer">${escapeHtml(answer)}</div>
+      <button class="primary-button button-wide" style="margin-top:13px" data-action="close-modal" type="button">Save and Close</button>
+    </section>
+  </div>`;
+}
+
+async function runItemAnalysis(item) {
+  showLoading("AI is checking the item and your profit rules…");
+  try {
+    const result = await requestAi({
+      mode: "analysis",
+      prompt: buildAnalysisPrompt(item, state.settings),
+      photos: item.photos || []
+    });
+    const analysis = extractAnalysisJson(result.output);
+    item.analysis = analysis;
+    if (!item.name) item.name = analysis.suggestedName || "Unidentified find";
+    item.category = analysis.category || item.category || "Unidentified";
+    item.nextAction = analysis.nextStep || item.nextAction;
+    item.aiModel = result.model;
+    item.lastAiAt = new Date().toISOString();
+    await saveAndRefresh(item, "AI evaluation complete and saved.");
+  } catch (error) {
+    showToast(error.message || "The AI evaluation could not be completed.");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function askItemAi(item, prompt, title, question = "") {
+  showLoading("Flip Finder AI is working…");
+  try {
+    const result = await requestAi({ mode: "chat", prompt, photos: item.photos || [] });
+    item.aiHistory = [...(item.aiHistory || []), {
+      id: createId("ai-answer"),
+      title,
+      question,
+      response: result.output,
+      model: result.model,
+      createdAt: new Date().toISOString()
+    }];
+    item.aiModel = result.model;
+    item.lastAiAt = new Date().toISOString();
+    await saveAndRefresh(item);
+    openAiAnswerModal(title, result.output);
+  } catch (error) {
+    showToast(error.message || "The AI could not answer right now.");
+  } finally {
+    hideLoading();
+  }
+}
+
 async function handleEvaluateSubmit(form, submitter) {
   const values = formValues(form);
   if (!state.draftPhotos.length && !String(values.sellerDescription || "").trim() && !String(values.listingLink || "").trim()) {
@@ -700,26 +735,9 @@ async function handleEvaluateSubmit(form, submitter) {
   state.draftPhotos = [];
   navigate(`item/${encodeURIComponent(item.id)}`);
   if (submitter?.value === "analysis") {
-    setTimeout(() => openPromptModal("Evaluate this find", buildAnalysisPrompt(item, state.settings), item.photos.length), 80);
+    setTimeout(() => runItemAnalysis(item), 120);
   } else {
     showToast("Draft saved on this device.");
-  }
-}
-
-async function importAnalysis(form) {
-  const id = form.dataset.itemId;
-  const item = state.items.find((candidate) => candidate.id === id);
-  if (!item) return;
-  try {
-    const analysis = extractAnalysisJson(new FormData(form).get("analysisResult"));
-    item.analysis = analysis;
-    if (!item.name) item.name = analysis.suggestedName || "Unidentified find";
-    item.category = analysis.category || item.category || "Unidentified";
-    item.nextAction = analysis.nextStep || item.nextAction;
-    item.aiHistory = item.aiHistory || [];
-    await saveAndRefresh(item, "Evaluation imported and your personal verdict updated.");
-  } catch (error) {
-    showToast(error.message);
   }
 }
 
@@ -787,22 +805,6 @@ function compressImage(file, maxDimension = 1280, quality = 0.74) {
     };
     image.src = objectUrl;
   });
-}
-
-async function copyPrompt() {
-  try {
-    await navigator.clipboard.writeText(state.promptText);
-    showToast("Prompt copied. Open ChatGPT and attach the same item photos.");
-  } catch {
-    const box = document.querySelector("#prompt-text");
-    box?.focus();
-    box?.select();
-    showToast("The prompt is selected. Tap Copy from the iPhone menu.");
-  }
-}
-
-function openChatGPT() {
-  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 }
 
 function startVoice(fieldName) {
@@ -894,17 +896,13 @@ document.addEventListener("click", async (event) => {
   } else if (action === "set-filter") {
     state.projectFilter = button.dataset.filter;
     render();
-  } else if (action === "analysis-prompt") {
+  } else if (action === "run-analysis") {
     const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
-    if (item) openPromptModal("Evaluate this find", buildAnalysisPrompt(item, state.settings), item.photos?.length || 0);
-  } else if (action === "quick-prompt") {
+    if (item) await runItemAnalysis(item);
+  } else if (action === "quick-ai") {
     const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
     const label = QUICK_ACTIONS.find(([key]) => key === button.dataset.promptAction)?.[1] || "Ask about this item";
-    if (item) openPromptModal(label, buildQuickActionPrompt(item, button.dataset.promptAction, state.settings), item.photos?.length || 0);
-  } else if (action === "copy-prompt") {
-    await copyPrompt();
-  } else if (action === "open-chatgpt") {
-    openChatGPT();
+    if (item) await askItemAi(item, buildQuickActionPrompt(item, button.dataset.promptAction, state.settings), label);
   } else if (action === "install-help") {
     openInstallModal();
   } else if (action === "voice") {
@@ -942,8 +940,6 @@ document.addEventListener("submit", async (event) => {
   try {
     if (form.id === "evaluate-form") {
       await handleEvaluateSubmit(form, event.submitter);
-    } else if (form.id === "import-analysis-form") {
-      await importAnalysis(form);
     } else if (form.id === "project-form") {
       const item = state.items.find((candidate) => candidate.id === form.dataset.itemId);
       if (!item) return;
@@ -960,17 +956,13 @@ document.addEventListener("submit", async (event) => {
       const values = formValues(form);
       item.expenses = [...(item.expenses || []), { id: createId("expense"), type: values.type, amount: numberValue(values.amount), note: values.note.trim(), createdAt: new Date().toISOString() }];
       await saveAndRefresh(item, "Expense added.");
-    } else if (form.id === "ai-history-form") {
+    } else if (form.id === "ai-chat-form") {
       const item = state.items.find((candidate) => candidate.id === form.dataset.itemId);
       if (!item) return;
       const values = formValues(form);
-      item.aiHistory = [...(item.aiHistory || []), {
-        id: createId("ai-note"),
-        title: values.title.trim() || "ChatGPT answer",
-        response: values.response.trim(),
-        createdAt: new Date().toISOString()
-      }];
-      await saveAndRefresh(item, "ChatGPT answer saved to this item.");
+      const question = values.question.trim();
+      const prompt = `${buildQuickActionPrompt(item, "custom", state.settings)}\n\nUSER QUESTION\n${question}`;
+      await askItemAi(item, prompt, "Your question", question);
     } else if (form.id === "sale-form") {
       const item = state.items.find((candidate) => candidate.id === form.dataset.itemId);
       if (!item) return;
