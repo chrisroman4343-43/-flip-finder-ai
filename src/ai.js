@@ -1,4 +1,4 @@
-const DEFAULT_ENDPOINT = "/api/ai";
+const DEFAULT_ENDPOINT = "https://flip-finder-ai-api.netlify.app/api/ai";
 const MAX_PHOTOS = 4;
 
 function cleanPhotos(photos = []) {
@@ -59,4 +59,3 @@ export async function requestAi({ mode, prompt, photos = [] }) {
     clearTimeout(timeout);
   }
 }
-
