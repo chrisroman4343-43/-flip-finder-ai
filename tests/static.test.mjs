@@ -1,0 +1,65 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { access, readFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildAnalysisPrompt, DEFAULT_SETTINGS } from "../src/logic.js";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+test("manifest icons and core PWA files exist", async () => {
+  const manifest = JSON.parse(await readFile(resolve(root, "manifest.webmanifest"), "utf8"));
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "./#home");
+  const expected = [
+    "index.html",
+    "styles.css",
+    "sw.js",
+    "src/app.js",
+    "src/db.js",
+    "src/logic.js",
+    ...manifest.icons.map((icon) => icon.src.replace(/^\.\//, ""))
+  ];
+  await Promise.all(expected.map((path) => access(resolve(root, path))));
+});
+
+test("the app loads no third-party scripts or styles", async () => {
+  const html = await readFile(resolve(root, "index.html"), "utf8");
+  assert.doesNotMatch(html, /<(script|link)[^>]+https?:\/\//i);
+});
+
+test("the public evaluation prompt uses generic defaults and no numbered street address", () => {
+  const prompt = buildAnalysisPrompt({ source: "Kijiji", askingPrice: 10 }, DEFAULT_SETTINGS);
+  assert.match(prompt, /Your local used market/);
+  assert.match(prompt, /50 km of your home area/);
+  assert.doesNotMatch(prompt, /\b\d{1,5}\s+[A-Za-z]+\s+(Drive|Street|Road|Avenue)\b/i);
+});
+
+test("the static app shell is served with its required assets", async (context) => {
+  const contentTypes = {
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "text/javascript",
+    ".webmanifest": "application/manifest+json",
+    ".png": "image/png"
+  };
+  const server = createServer(async (request, response) => {
+    const relative = request.url === "/" ? "index.html" : request.url.replace(/^\//, "");
+    try {
+      const body = await readFile(resolve(root, relative));
+      const extension = `.${relative.split(".").pop()}`;
+      response.writeHead(200, { "content-type": contentTypes[extension] || "application/octet-stream" });
+      response.end(body);
+    } catch {
+      response.writeHead(404).end();
+    }
+  });
+  await new Promise((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
+  context.after(() => new Promise((resolveClose) => server.close(resolveClose)));
+  const { port } = server.address();
+  for (const path of ["/", "/manifest.webmanifest", "/src/app.js", "/assets/icon-192.png"]) {
+    const response = await fetch(`http://127.0.0.1:${port}${path}`);
+    assert.equal(response.status, 200, `${path} should be served`);
+  }
+});
