@@ -1,3 +1,5 @@
+import type { Config, Context } from "@netlify/functions";
+
 const MODEL_ENDPOINT = "https://models.github.ai/inference/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-4.1-mini";
 const MAX_BODY_BYTES = 5_500_000;
@@ -5,7 +7,7 @@ const MAX_PROMPT_LENGTH = 30_000;
 const MAX_PHOTOS = 4;
 const MAX_PHOTO_LENGTH = 1_700_000;
 
-function json(body, status = 200, extraHeaders = {}) {
+function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -17,7 +19,7 @@ function json(body, status = 200, extraHeaders = {}) {
   });
 }
 
-function allowedOrigin(request) {
+function allowedOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return "";
   const ownOrigin = new URL(request.url).origin;
@@ -29,7 +31,7 @@ function allowedOrigin(request) {
   return origin === ownOrigin || configured.includes(origin) || local ? origin : null;
 }
 
-function corsHeaders(origin) {
+function corsHeaders(origin: string | null) {
   return origin
     ? {
         "access-control-allow-origin": origin,
@@ -40,13 +42,13 @@ function corsHeaders(origin) {
     : {};
 }
 
-function validPhoto(value) {
+function validPhoto(value: unknown): value is string {
   return typeof value === "string"
     && value.length <= MAX_PHOTO_LENGTH
     && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=\r\n]+$/i.test(value);
 }
 
-export default async (request, context) => {
+export default async (request: Request, context: Context) => {
   const origin = allowedOrigin(request);
   if (origin === null) return json({ error: "This app address is not allowed." }, 403);
   const cors = corsHeaders(origin);
@@ -60,7 +62,7 @@ export default async (request, context) => {
   const token = Netlify.env.get("GITHUB_MODELS_TOKEN");
   if (!token) return json({ error: "The free AI connection has not been configured yet." }, 503, cors);
 
-  let input;
+  let input: { mode?: unknown; prompt?: unknown; photos?: unknown };
   try {
     const raw = await request.text();
     if (raw.length > MAX_BODY_BYTES) return json({ error: "The photos are too large. Use four or fewer images." }, 413, cors);
@@ -132,7 +134,7 @@ export default async (request, context) => {
   }
 };
 
-export const config = {
+export const config: Config = {
   path: "/api/ai",
   method: ["POST", "OPTIONS"]
 };
