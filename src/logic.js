@@ -1,397 +1,62 @@
-export const DEFAULT_SETTINGS = Object.freeze({
-  homeArea: "Your area",
-  marketRegion: "Your local used market",
-  preferredAreas: "Enter your preferred towns",
-  radiusCentre: "your home area",
-  radiusKm: 50,
-  vehicle: "Enter your vehicle or transport limits",
-  minimumProfit: 30,
-  targetProfit: 50,
-  minimumHourly: 20,
-  targetHourly: 30,
-  maxInvestment: 100,
-  riskLevel: "Balanced",
-  currency: "CAD",
-  showExamples: true
-});
+export const DEFAULT_SETTINGS = Object.freeze({homeArea:"Johnstons River, PEI",marketRegion:"Prince Edward Island, Canada",preferredAreas:"Stratford, Charlottetown, Cornwall",radiusCentre:"Charlottetown",radiusKm:70,vehicle:"Nissan Rogue, rear seats fold down",minimumProfit:40,targetProfit:60,minimumHourly:25,targetHourly:35,maxInvestment:100,riskLevel:"Balanced",currency:"CAD",showExamples:true});
+export const SOURCES=["Facebook Marketplace","Kijiji","Thrift store","Yard or garage sale","Estate sale","Auction","Flea market","Curbside or free listing","ReStore","Clearance or liquidation","Surplus sale","Other"];
+export const STAGES=["Considering","Seller Contacted","Inspection Needed","Passed","Purchased or Picked Up","Cleaning","Repairing","Ready for Photos","Ready to List","Listed","Offer Received","Sold","Donated","Parted Out","Abandoned"];
+const CLOSED_STAGES=new Set(["Sold","Donated","Parted Out","Abandoned"]);
+export function numberValue(value,fallback=0){const cleaned=typeof value==="string"?value.replace(/CAD/gi,"").replaceAll(",","").replaceAll("$","").trim():value;const parsed=typeof cleaned==="number"?cleaned:Number.parseFloat(cleaned);return Number.isFinite(parsed)?parsed:fallback;}
+export function formatMoney(value){return new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD",maximumFractionDigits:0}).format(numberValue(value));}
+export function formatPercent(value){return Number.isFinite(value)?`${Math.round(value)}%`:"—";}
+export function createId(prefix="item"){if(globalThis.crypto?.randomUUID)return `${prefix}-${globalThis.crypto.randomUUID()}`;return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;}
+export function isClosedStage(stage){return CLOSED_STAGES.has(stage);}
+export function daysBetween(start,end=new Date()){const d=new Date(start);return Number.isNaN(d.getTime())?0:Math.max(0,Math.floor((end.getTime()-d.getTime())/86400000));}
+function confidenceLevel(value){const v=String(value||"low").toLowerCase();return v.startsWith("high")?"high":v.startsWith("medium")?"medium":"low";}
+export function calculateFinancials(item){const a=item.analysis||{};const askingPrice=numberValue(item.askingPrice);const hasPurchasePrice=item.purchasePrice!==""&&item.purchasePrice!==null&&item.purchasePrice!==undefined;const purchasePrice=hasPurchasePrice?numberValue(item.purchasePrice):askingPrice;const recordedExpenses=(item.expenses||[]).reduce((s,e)=>s+numberValue(e.amount),0);const plannedCosts=numberValue(a.cleaningCost)+numberValue(a.repairCost)+numberValue(a.transportCost)+numberValue(a.platformFees);const expectedInvestment=purchasePrice+Math.max(plannedCosts,recordedExpenses);const actualInvestment=purchasePrice+recordedExpenses;const asIsLow=numberValue(a.asIsLow),asIsHigh=numberValue(a.asIsHigh),improvedLow=numberValue(a.improvedLow),improvedHigh=numberValue(a.improvedHigh);const improved=improvedLow>0&&improvedHigh>0;const resaleLow=improved?improvedLow:asIsLow,resaleHigh=improved?improvedHigh:asIsHigh,resaleMid=resaleLow&&resaleHigh?(resaleLow+resaleHigh)/2:resaleLow||resaleHigh;const estimatedHours=Math.max(numberValue(a.estimatedHours,numberValue(item.hoursSpent)),0);const expectedNetLow=resaleLow-expectedInvestment,expectedNetMid=resaleMid-expectedInvestment,expectedProfitPerHour=estimatedHours>0?expectedNetLow/estimatedHours:null;const salePrice=numberValue(item.salePrice);const actualNet=salePrice>0?salePrice-actualInvestment:null;const actualProfitPerHour=actualNet!==null&&numberValue(item.hoursSpent)>0?actualNet/numberValue(item.hoursSpent):null;const expectedRoi=expectedInvestment>0?expectedNetLow/expectedInvestment*100:null;const actualRoi=actualNet!==null&&actualInvestment>0?actualNet/actualInvestment*100:null;return{askingPrice,purchasePrice,recordedExpenses,plannedCosts,expectedInvestment,actualInvestment,resaleLow,resaleHigh,resaleMid,expectedNetLow,expectedNetMid,expectedProfitPerHour,expectedRoi,salePrice,actualNet,actualProfitPerHour,actualRoi};}
+export function personalizedDecision(item,settings=DEFAULT_SETTINGS){if(!item.analysis)return{verdict:"Research Further",tone:"research",reason:"Run the AI evaluation before spending money."};const a=item.analysis,f=calculateFinancials(item),confidence=confidenceLevel(a.confidence),minProfit=numberValue(settings.minimumProfit,40),targetProfit=numberValue(settings.targetProfit,60),minHourly=numberValue(settings.minimumHourly,25),targetHourly=numberValue(settings.targetHourly,35),maxInvestment=numberValue(settings.maxInvestment,100),riskText=`${a.biggestRisk||""} ${(a.safetyConcerns||[]).join(" ")}`.toLowerCase();if(/mould|mold|bed bug|pest infestation|unsafe|fire hazard|asbestos|stolen|structural failure|recall/.test(riskText))return{verdict:"Avoid",tone:"avoid",reason:"A safety, contamination, recall or structural risk could wipe out the profit."};if(f.expectedInvestment>maxInvestment)return{verdict:f.askingPrice>0?"Negotiate":"Research Further",tone:"negotiate",reason:`Total expected investment is above your ${formatMoney(maxInvestment)} limit.`};if(f.expectedNetLow<0)return{verdict:"Avoid",tone:"avoid",reason:"The conservative resale estimate loses money after expected costs."};if(f.expectedNetLow<minProfit)return f.askingPrice<=0?{verdict:"Take Only If Free",tone:"free",reason:`Conservative profit is below your ${formatMoney(minProfit)} minimum.`}:{verdict:"Negotiate",tone:"negotiate",reason:`Conservative profit is below your ${formatMoney(minProfit)} minimum. Lower the buy price.`};if(f.expectedProfitPerHour!==null&&f.expectedProfitPerHour<minHourly)return{verdict:"Negotiate",tone:"negotiate",reason:`Estimated return is below your ${formatMoney(minHourly)}/hour minimum.`};if(confidence==="low")return{verdict:"Research Further",tone:"research",reason:"The AI is not confident enough to risk your money yet. Get the model, condition and comparable-sale evidence."};if(f.askingPrice<=0&&f.expectedNetLow>=targetProfit)return{verdict:"Pick Up Immediately",tone:"buy",reason:`It is free and clears your ${formatMoney(targetProfit)} preferred profit target.`};if(f.expectedNetLow>=targetProfit&&(f.expectedProfitPerHour===null||f.expectedProfitPerHour>=targetHourly))return{verdict:"Buy",tone:"buy",reason:`It clears your ${formatMoney(targetProfit)} profit and ${formatMoney(targetHourly)}/hour preferred targets.`};return{verdict:"Negotiate",tone:"negotiate",reason:"The flip may work, but your margin is not strong enough at the current price."};}
+function cleanText(value,fallback="Not provided"){const text=String(value??"").trim();return text||fallback;}
+export function buildAnalysisPrompt(item,settings=DEFAULT_SETTINGS){return `You are Flip Finder AI, a practical resale-flipping assistant for one Canadian user. Analyze the attached item photos and listing information. Work with ANY category. Never pretend an uncertain identification, value, age, material, brand, model or condition is confirmed.
 
-export const SOURCES = [
-  "Facebook Marketplace",
-  "Kijiji",
-  "Thrift store",
-  "Yard or garage sale",
-  "Estate sale",
-  "Auction",
-  "Flea market",
-  "Curbside or free listing",
-  "ReStore",
-  "Clearance or liquidation",
-  "Surplus sale",
-  "Other"
-];
+USER RULES
+Market: ${cleanText(settings.marketRegion)}
+Preferred areas: ${cleanText(settings.preferredAreas)}
+Search radius: ${numberValue(settings.radiusKm,70)} km from ${cleanText(settings.radiusCentre,"Charlottetown")}
+Transport: ${cleanText(settings.vehicle)}
+Minimum net profit: ${formatMoney(settings.minimumProfit)}
+Preferred net profit: ${formatMoney(settings.targetProfit)}
+Minimum profit per hour: ${formatMoney(settings.minimumHourly)}
+Preferred profit per hour: ${formatMoney(settings.targetHourly)}
+Maximum total investment: ${formatMoney(settings.maxInvestment)}
+Risk: ${cleanText(settings.riskLevel)}
 
-export const STAGES = [
-  "Considering",
-  "Seller Contacted",
-  "Inspection Needed",
-  "Passed",
-  "Purchased or Picked Up",
-  "Cleaning",
-  "Repairing",
-  "Ready for Photos",
-  "Ready to List",
-  "Listed",
-  "Offer Received",
-  "Sold",
-  "Donated",
-  "Parted Out",
-  "Abandoned"
-];
+LISTING
+Source: ${cleanText(item.source)}
+Asking price: ${formatMoney(item.askingPrice)}
+Location: ${cleanText(item.location)}
+Description: ${cleanText(item.sellerDescription)}
+Brand/model: ${cleanText([item.brand,item.model].filter(Boolean).join(" "))}
+Dimensions: ${cleanText(item.dimensions)}
+Condition notes: ${cleanText(item.conditionNotes)}
+Question: ${cleanText(item.question,"Is this worth flipping?")}
 
-const CLOSED_STAGES = new Set(["Sold", "Donated", "Parted Out", "Abandoned"]);
+RULES
+1. Separate visible facts, likely possibilities and must-verify checks.
+2. Look for labels, model numbers, markings, material, construction, damage, missing parts, moisture, mould, pests, rust, cracks, stains and safety issues.
+3. Use conservative local used-market estimates, not retail or antique-store asking prices. Never invent sold comparables.
+4. Normal local cash Marketplace/Kijiji platform fee = 0 unless the user supplies a real fee. Do not invent fees.
+5. Transport cost = 0 unless a real distance/cost is supplied. Do not invent fuel costs.
+6. The app calculates the final buy decision. Do not override its profit rules.
+7. Recommend only low-cost improvements where likely added value exceeds cost. Preserve labels, finishes, patina and collectible features.
+8. Avoid unsafe electrical, structural, mould-remediation or professional restoration instructions.
+9. Do not hide defects or create misleading listing photos.
+10. Return JSON only.
 
-export function numberValue(value, fallback = 0) {
-  const cleaned = typeof value === "string"
-    ? value.replace(/CAD/gi, "").replaceAll(",", "").replaceAll("$", "").trim()
-    : value;
-  const parsed = typeof cleaned === "number" ? cleaned : Number.parseFloat(cleaned);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
+JSON FORMAT
+{"suggestedName":"","category":"","likelyUse":"","visibleFacts":[],"likelyPossibilities":[],"verifyInPerson":[],"condition":"","valueFeatures":[],"safetyConcerns":[],"openingOffer":0,"maxPurchasePrice":0,"asIsLow":0,"asIsHigh":0,"improvedLow":0,"improvedHigh":0,"cleaningCost":0,"repairCost":0,"transportCost":0,"platformFees":0,"estimatedHours":0,"timeToSell":"","confidence":"Low, Medium or High","mainReason":"","biggestRisk":"","bestStrategy":"","nextStep":"","summary":""}`;}
+export const QUICK_ACTIONS=[["worth","Is It Worth Buying?"],["identify","Identify This Item"],["inspect","What Should I Check?"],["max-price","Maximum Price to Pay"],["seller-message","Write Seller Message"],["clean","Create Cleaning Plan"],["repair","Create Repair Plan"],["supplies","Make Supply List"],["photos","Photo Instructions"],["listing","Write Listing"],["buyer-reply","Respond to Buyer"],["offer","Evaluate Offer"],["lower-price","Should I Lower the Price?"],["profit","Calculate Final Profit"]];
+const ACTION_REQUESTS={worth:"Give one clear verdict using my saved profit rules. Show asking price, realistic resale, expected costs, conservative net profit and the price I should actually pay.",identify:"Identify the item from the photos. Separate visible facts, likely possibilities and must-verify information. Look for model numbers and labels.",inspect:"Create a short category-specific inspection checklist. Put safety, completeness and profit-killing defects first.","max-price":"Calculate a conservative maximum purchase price using my minimum profit and hourly targets. Do not use a higher AI guess if it conflicts with my rules.","seller-message":"Write one short natural message asking only the most important unanswered questions before I travel to see the item.",clean:"Create a low-cost cleaning plan with supplies, cost, time and safety. Protect original finish, labels and patina.",repair:"Create a low-cost repair plan only where expected value increase exceeds cost. Clearly mark anything I should not attempt myself.",supplies:"Give me the smallest inexpensive supply list for worthwhile work. Avoid specialized tools unless the item justifies them.",photos:"Give exact iPhone product-photo instructions for an honest listing: setup, light, angles, detail shots, measurements and defects.",listing:"Write an honest Facebook Marketplace/Kijiji listing. Include title, description, condition, measurements, defects, included parts, asking price, lowest acceptable price and photo order. Do not publish it.","buyer-reply":"Write a short natural reply to the buyer message I provide. Protect my minimum acceptable price and do not promise a hold unless I approve it.",offer:"Evaluate the buyer offer against my actual investment and saved profit rules. Recommend accept, counter or decline with exact numbers.","lower-price":"Decide whether to lower price, refresh, relist, bundle, part out or hold. Ask for missing listing age or interest data rather than guessing.",profit:"Calculate final sale profit, profit per hour, ROI and total investment from saved numbers. Ask for missing numbers instead of guessing."};
+export function buildQuickActionPrompt(item,action,settings=DEFAULT_SETTINGS){const request=ACTION_REQUESTS[action]||"Help me make the most practical next decision for this flip.";const f=calculateFinancials(item);return `You are inside Flip Finder AI. ${request}
 
-export function formatMoney(value) {
-  return new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0
-  }).format(numberValue(value));
-}
-
-export function formatPercent(value) {
-  if (!Number.isFinite(value)) return "—";
-  return `${Math.round(value)}%`;
-}
-
-export function createId(prefix = "item") {
-  if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-export function isClosedStage(stage) {
-  return CLOSED_STAGES.has(stage);
-}
-
-export function daysBetween(start, end = new Date()) {
-  const startDate = new Date(start);
-  if (Number.isNaN(startDate.getTime())) return 0;
-  return Math.max(0, Math.floor((end.getTime() - startDate.getTime()) / 86_400_000));
-}
-
-export function calculateFinancials(item) {
-  const analysis = item.analysis || {};
-  const askingPrice = numberValue(item.askingPrice);
-  const hasPurchasePrice = item.purchasePrice !== "" && item.purchasePrice !== null && item.purchasePrice !== undefined;
-  const purchasePrice = hasPurchasePrice ? numberValue(item.purchasePrice) : askingPrice;
-  const recordedExpenses = (item.expenses || []).reduce((sum, expense) => sum + numberValue(expense.amount), 0);
-  const plannedCosts =
-    numberValue(analysis.cleaningCost) +
-    numberValue(analysis.repairCost) +
-    numberValue(analysis.transportCost) +
-    numberValue(analysis.platformFees);
-
-  const expectedInvestment = purchasePrice + Math.max(plannedCosts, recordedExpenses);
-  const actualInvestment = purchasePrice + recordedExpenses;
-  const hasImprovedRange = numberValue(analysis.improvedHigh) > 0;
-  const resaleLow = hasImprovedRange ? numberValue(analysis.improvedLow) : numberValue(analysis.asIsLow);
-  const resaleHigh = hasImprovedRange ? numberValue(analysis.improvedHigh) : numberValue(analysis.asIsHigh);
-  const resaleMid = resaleLow && resaleHigh ? (resaleLow + resaleHigh) / 2 : resaleLow || resaleHigh;
-  const expectedNetLow = resaleLow - expectedInvestment;
-  const expectedNetMid = resaleMid - expectedInvestment;
-  const estimatedHours = Math.max(numberValue(analysis.estimatedHours, numberValue(item.hoursSpent)), 0);
-  const expectedProfitPerHour = estimatedHours > 0 ? expectedNetLow / estimatedHours : null;
-  const salePrice = numberValue(item.salePrice);
-  const actualNet = salePrice > 0 ? salePrice - actualInvestment : null;
-  const actualProfitPerHour = actualNet !== null && numberValue(item.hoursSpent) > 0
-    ? actualNet / numberValue(item.hoursSpent)
-    : null;
-  const expectedRoi = expectedInvestment > 0 ? (expectedNetLow / expectedInvestment) * 100 : null;
-  const actualRoi = actualNet !== null && actualInvestment > 0 ? (actualNet / actualInvestment) * 100 : null;
-
-  return {
-    askingPrice,
-    purchasePrice,
-    recordedExpenses,
-    plannedCosts,
-    expectedInvestment,
-    actualInvestment,
-    resaleLow,
-    resaleHigh,
-    resaleMid,
-    expectedNetLow,
-    expectedNetMid,
-    expectedProfitPerHour,
-    expectedRoi,
-    salePrice,
-    actualNet,
-    actualProfitPerHour,
-    actualRoi
-  };
-}
-
-export function personalizedDecision(item, settings = DEFAULT_SETTINGS) {
-  if (!item.analysis) {
-    return {
-      verdict: "Research Further",
-      tone: "research",
-      reason: "Run the photo evaluation before spending money."
-    };
-  }
-
-  const financials = calculateFinancials(item);
-  const confidence = String(item.analysis.confidence || "low").toLowerCase();
-  const biggestRisk = String(item.analysis.biggestRisk || "").toLowerCase();
-  const seriousRisk = /(mould|mold|bed bug|pest|unsafe|recall|fire hazard|stolen|asbestos|structural failure)/.test(biggestRisk);
-  const minimumProfit = numberValue(settings.minimumProfit, 30);
-  const targetProfit = numberValue(settings.targetProfit, 50);
-  const minimumHourly = numberValue(settings.minimumHourly, 20);
-  const targetHourly = numberValue(settings.targetHourly, 30);
-  const maxInvestment = numberValue(settings.maxInvestment, 100);
-
-  if (seriousRisk) {
-    return { verdict: "Avoid", tone: "avoid", reason: "The main risk could erase the profit or make the item unsafe to resell." };
-  }
-
-  if (financials.expectedInvestment > maxInvestment) {
-    return {
-      verdict: financials.askingPrice > 0 ? "Negotiate" : "Research Further",
-      tone: "negotiate",
-      reason: `The expected investment is above your ${formatMoney(maxInvestment)} limit.`
-    };
-  }
-
-  if (financials.expectedInvestment >= maxInvestment * 0.75 && confidence !== "high") {
-    return {
-      verdict: "Research Further",
-      tone: "research",
-      reason: `The investment is close to your ${formatMoney(maxInvestment)} limit, so you require high confidence before buying.`
-    };
-  }
-
-  if (financials.expectedNetLow < 0) {
-    return { verdict: "Avoid", tone: "avoid", reason: "The conservative estimate loses money." };
-  }
-
-  if (financials.expectedNetLow < minimumProfit) {
-    return financials.askingPrice <= 0
-      ? { verdict: "Take Only If Free", tone: "free", reason: `The conservative profit is below your ${formatMoney(minimumProfit)} minimum.` }
-      : { verdict: "Negotiate", tone: "negotiate", reason: `The conservative profit is below your ${formatMoney(minimumProfit)} minimum.` };
-  }
-
-  if (financials.expectedProfitPerHour !== null && financials.expectedProfitPerHour < minimumHourly) {
-    return {
-      verdict: "Negotiate",
-      tone: "negotiate",
-      reason: `The estimated hourly return is below your ${formatMoney(minimumHourly)} minimum.`
-    };
-  }
-
-  if (confidence === "low") {
-    return { verdict: "Research Further", tone: "research", reason: "The value estimate is not confident enough yet." };
-  }
-
-  if (financials.askingPrice <= 0 && financials.expectedNetLow >= targetProfit) {
-    return { verdict: "Pick Up Immediately", tone: "buy", reason: "It is free and clears your preferred profit target." };
-  }
-
-  if (
-    financials.expectedNetLow >= targetProfit &&
-    (financials.expectedProfitPerHour === null || financials.expectedProfitPerHour >= targetHourly)
-  ) {
-    return { verdict: "Buy", tone: "buy", reason: "It clears your preferred profit and hourly-return targets." };
-  }
-
-  return { verdict: "Negotiate", tone: "negotiate", reason: "It may work, but a lower purchase price gives you a safer margin." };
-}
-
-function cleanText(value, fallback = "Not provided") {
-  const text = String(value ?? "").trim();
-  return text || fallback;
-}
-
-export function buildAnalysisPrompt(item, settings = DEFAULT_SETTINGS) {
-  return `You are the analysis engine for my personal resale app, Flip Finder AI. Evaluate the supplied item photos and saved information. If no photo is supplied, give a preliminary text-only answer and clearly list the photos or facts needed for greater confidence.
-
-MY FLIPPING RULES
-- Currency: Canadian dollars
-- Local market: ${cleanText(settings.marketRegion)}
-- Preferred buying areas: ${cleanText(settings.preferredAreas)}
-- Wider limit: within ${numberValue(settings.radiusKm, 50)} km of ${cleanText(settings.radiusCentre, "the home area")}
-- Transport: ${cleanText(settings.vehicle)}
-- Minimum acceptable net profit: ${formatMoney(settings.minimumProfit)}
-- Preferred net profit: ${formatMoney(settings.targetProfit)} or more
-- Minimum profit per hour: ${formatMoney(settings.minimumHourly)}
-- Strong profit per hour: ${formatMoney(settings.targetHourly)} or more
-- Maximum total investment: ${formatMoney(settings.maxInvestment)}, and only when the profit is highly likely
-- Risk approach: ${cleanText(settings.riskLevel)}
-
-ITEM INFORMATION
-- Source: ${cleanText(item.source)}
-- Asking price: ${formatMoney(item.askingPrice)}
-- Listing location: ${cleanText(item.location)}
-- Seller description: ${cleanText(item.sellerDescription)}
-- Brand or model entered: ${cleanText([item.brand, item.model].filter(Boolean).join(" "))}
-- Dimensions entered: ${cleanText(item.dimensions)}
-- Condition notes: ${cleanText(item.conditionNotes)}
-- My question: ${cleanText(item.question, "Is this worth acquiring and flipping?")}
-- Listing link for reference only: ${cleanText(item.listingLink)}
-
-ANALYSIS RULES
-1. Work with any item category. Do not assume it is furniture or an antique.
-2. Separate clearly visible facts, likely possibilities and facts that must be verified in person.
-3. Never present an uncertain brand, model, material, age, condition or value as confirmed.
-4. Look for labels, markings, model numbers, missing pieces, damage, mould, pests, rust, cracks, stains and safety concerns.
-5. Use conservative local used-market values for the market stated above, not retail or antique-store asking prices.
-6. You do not have verified live Marketplace or Kijiji comparable sales. Never invent them. Treat every resale range as a conservative preliminary estimate, say that in the summary, and lower confidence when model, condition or local demand is unclear.
-7. Recommend only inexpensive improvements that are likely to add more value than they cost. Preserve original labels, patina and collectible features.
-8. Do not recommend unsafe electrical, structural or professional restoration work.
-9. Use numbers without dollar signs inside the JSON.
-
-Return ONLY one valid JSON object, with no Markdown fences and no words before or after it. Use this exact structure:
-{
-  "suggestedName": "short honest item name",
-  "category": "best category or Unidentified",
-  "likelyUse": "what it is normally used for",
-  "visibleFacts": ["fact visible in an attached photo"],
-  "likelyPossibilities": ["possibility, clearly qualified"],
-  "verifyInPerson": ["specific thing to check"],
-  "condition": "short condition assessment",
-  "valueFeatures": ["feature that may increase value or should be preserved"],
-  "safetyConcerns": ["concern or None visible"],
-  "openingOffer": 0,
-  "maxPurchasePrice": 0,
-  "asIsLow": 0,
-  "asIsHigh": 0,
-  "improvedLow": 0,
-  "improvedHigh": 0,
-  "cleaningCost": 0,
-  "repairCost": 0,
-  "transportCost": 0,
-  "platformFees": 0,
-  "estimatedHours": 0,
-  "timeToSell": "estimated local selling time",
-  "confidence": "Low, Medium or High",
-  "mainReason": "main reason behind the recommendation",
-  "biggestRisk": "single largest risk",
-  "bestStrategy": "as-is, clean and sell, repair, bundle, part out or another strategy",
-  "nextStep": "one immediate action",
-  "summary": "plain-language summary in no more than 60 words"
-}`;
-}
-
-export const QUICK_ACTIONS = [
-  ["worth", "Is It Worth Buying?"],
-  ["identify", "Identify This Item"],
-  ["inspect", "What Should I Check?"],
-  ["max-price", "Maximum Price to Pay"],
-  ["seller-message", "Write Seller Message"],
-  ["clean", "Create Cleaning Plan"],
-  ["repair", "Create Repair Plan"],
-  ["supplies", "Make Supply List"],
-  ["photos", "Photo Instructions"],
-  ["listing", "Write Listing"],
-  ["buyer-reply", "Respond to Buyer"],
-  ["offer", "Evaluate Offer"],
-  ["lower-price", "Should I Lower the Price?"],
-  ["profit", "Calculate Final Profit"]
-];
-
-const ACTION_REQUESTS = {
-  worth: "Tell me whether this item is worth buying under my personal profit rules. Lead with one verdict and explain the numbers simply.",
-  identify: "Identify the item from the attached photos. Separate visible facts, possibilities and things I must verify.",
-  inspect: "Create a short, category-specific inspection checklist I can use beside the item. Put safety and profit-killing defects first.",
-  "max-price": "Calculate the maximum price I should pay while preserving my profit and hourly-return targets. Show the simple calculation.",
-  "seller-message": "Write one short, natural Marketplace message asking only the most important unanswered questions. Do not sound automated.",
-  clean: "Create a low-cost cleaning plan. Protect labels, original finishes, patina and collectible value. Include supplies, cost, time and safety.",
-  repair: "Create a low-cost repair plan only for work likely to increase profit. Avoid unsafe or major repairs. Include a worth-it verdict for each task.",
-  supplies: "Make a minimal, inexpensive supply list for the worthwhile cleaning and repair tasks. Do not include expensive tools.",
-  photos: "Give exact honest iPhone product-photo instructions: location, background, light direction, camera height, angles, defects, labels, measurements and photo order. Do not hide damage or invent features.",
-  listing: "Write a complete, honest Facebook Marketplace and Kijiji listing with title, description, price, lowest acceptable price, measurements, defects, keywords and pickup wording. Do not publish it.",
-  "buyer-reply": "Write a short, natural reply to the buyer message I provide in this item chat. If it is missing, ask me for it. Protect my lowest acceptable price and do not promise a hold unless I approve it.",
-  offer: "Evaluate the buyer offer I provide in this item chat. If it is missing, ask me for it. Compare it with my costs and targets, then recommend accept, counter or decline.",
-  "lower-price": "Decide whether I should reduce, refresh, relist, bundle, part out or keep the price. Ask me for listing age and buyer interest if they are missing.",
-  profit: "Calculate final cash profit, profit per hour, ROI and days to sell. Ask for any missing sale or expense number instead of guessing."
-};
-
-export function buildQuickActionPrompt(item, action, settings = DEFAULT_SETTINGS) {
-  const financials = calculateFinancials(item);
-  const request = ACTION_REQUESTS[action] || "Give me the most useful next step for this flip.";
-  return `Act as my practical resale-flipping partner for this one saved project.
-
-REQUEST
-${request}
-
-PROJECT
-- Item: ${cleanText(item.name || item.analysis?.suggestedName, "Unidentified item")}
-- Category: ${cleanText(item.category || item.analysis?.category, "Unidentified")}
-- Source: ${cleanText(item.source)}
-- Stage: ${cleanText(item.stage)}
-- Asking price: ${formatMoney(item.askingPrice)}
-- Purchase price: ${item.purchasePrice === "" || item.purchasePrice == null ? "Not purchased" : formatMoney(item.purchasePrice)}
-- Expected investment: ${formatMoney(financials.expectedInvestment)}
-- Conservative expected profit: ${formatMoney(financials.expectedNetLow)}
-- Location: ${cleanText(item.location)}
-- Seller description: ${cleanText(item.sellerDescription)}
-- Notes: ${cleanText(item.conditionNotes)}
-- Existing analysis: ${item.analysis ? JSON.stringify(item.analysis) : "None yet"}
-- Recent saved AI notes: ${item.aiHistory?.length ? JSON.stringify(item.aiHistory.slice(-3).map((entry) => ({ title: entry.title, response: entry.response }))) : "None saved"}
-
-MY RULES
-- Market: ${cleanText(settings.marketRegion)}; preferred areas ${cleanText(settings.preferredAreas)}; maximum ${numberValue(settings.radiusKm, 50)} km from ${cleanText(settings.radiusCentre, "the home area")}
-- ${cleanText(settings.vehicle)}
-- Minimum profit ${formatMoney(settings.minimumProfit)}; preferred ${formatMoney(settings.targetProfit)}+
-- Minimum hourly return ${formatMoney(settings.minimumHourly)}; strong return ${formatMoney(settings.targetHourly)}+
-- Maximum investment ${formatMoney(settings.maxInvestment)} only when profit is highly likely
-- ${cleanText(settings.riskLevel)} risk
-
-Be concise, conservative and honest. Clearly mark uncertainty. Do not invent live comparable sales or claim to see details that are not visible in the supplied photographs.`;
-}
-
-export function extractAnalysisJson(rawText) {
-  const input = String(rawText || "").trim();
-  if (!input) throw new Error("The AI returned an empty evaluation. Try again.");
-  const firstBrace = input.indexOf("{");
-  const lastBrace = input.lastIndexOf("}");
-  if (firstBrace < 0 || lastBrace <= firstBrace) {
-    throw new Error("The AI evaluation was not in the expected format. Try again.");
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(input.slice(firstBrace, lastBrace + 1));
-  } catch {
-    throw new Error("The AI evaluation was incomplete. Try again with fewer photos.");
-  }
-
-  const numericFields = [
-    "openingOffer",
-    "maxPurchasePrice",
-    "asIsLow",
-    "asIsHigh",
-    "improvedLow",
-    "improvedHigh",
-    "cleaningCost",
-    "repairCost",
-    "transportCost",
-    "platformFees",
-    "estimatedHours"
-  ];
-  numericFields.forEach((field) => {
-    parsed[field] = numberValue(parsed[field]);
-  });
-  ["visibleFacts", "likelyPossibilities", "verifyInPerson", "valueFeatures", "safetyConcerns"].forEach((field) => {
-    parsed[field] = Array.isArray(parsed[field]) ? parsed[field].map(String).filter(Boolean) : [];
-  });
-  parsed.confidence = ["low", "medium", "high"].includes(String(parsed.confidence).toLowerCase())
-    ? `${String(parsed.confidence)[0].toUpperCase()}${String(parsed.confidence).slice(1).toLowerCase()}`
-    : "Low";
-  return parsed;
-}
+MY RULES: minimum profit ${formatMoney(settings.minimumProfit)}, preferred ${formatMoney(settings.targetProfit)}, minimum hourly ${formatMoney(settings.minimumHourly)}, preferred ${formatMoney(settings.targetHourly)}, maximum investment ${formatMoney(settings.maxInvestment)}, balanced risk, PEI market.
+ITEM: ${cleanText(item.name||item.analysis?.suggestedName)} | ${cleanText(item.category||item.analysis?.category)} | ${cleanText(item.source)} | asking ${formatMoney(item.askingPrice)} | purchase ${item.purchasePrice===""?"not purchased":formatMoney(item.purchasePrice)}
+CURRENT NUMBERS: expected investment ${formatMoney(f.expectedInvestment)}, conservative resale ${formatMoney(f.resaleLow)}–${formatMoney(f.resaleHigh)}, conservative net ${formatMoney(f.expectedNetLow)}, estimated hourly ${f.expectedProfitPerHour==null?"unknown":formatMoney(f.expectedProfitPerHour)}.
+SAVED AI REPORT: ${JSON.stringify(item.analysis||{})}
+Answer directly and practically. If information is missing, say exactly what is missing. Never invent local sold prices or facts.`;}
+export function extractAnalysisJson(output){if(!output)throw new Error("The AI returned no evaluation.");let text=String(output).trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");const first=text.indexOf("{"),last=text.lastIndexOf("}");if(first>=0&&last>first)text=text.slice(first,last+1);try{const parsed=JSON.parse(text);if(!parsed||typeof parsed!=="object")throw new Error();return parsed;}catch{throw new Error("The AI response was not in the expected format. Try the evaluation again.");}}
