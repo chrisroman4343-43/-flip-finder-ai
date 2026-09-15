@@ -34,17 +34,15 @@ test("AI endpoint refuses to run until the server-side token is configured", asy
   assert.match((await response.json()).error, /not been configured/i);
 });
 
-test("AI endpoint calls GitHub Models without returning the secret", async () => {
-  setEnvironment({ GITHUB_MODELS_TOKEN: "private-test-token", GITHUB_MODEL: "openai/gpt-4.1-mini" });
+test("AI endpoint calls Gemini without returning the secret", async () => {
+  setEnvironment({ GEMINI_API_KEY: "private-test-key" });
   globalThis.fetch = async (url, options) => {
-    assert.equal(url, "https://models.github.ai/inference/chat/completions");
-    assert.equal(options.headers.authorization, "Bearer private-test-token");
+    assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=private-test-key");
     const sent = JSON.parse(options.body);
-    assert.equal(sent.model, "openai/gpt-4.1-mini");
-    assert.equal(sent.messages[1].content[0].text, "Evaluate this find");
-    return new Response(JSON.stringify({ choices: [{ message: { content: '{"suggestedName":"Test item"}' } }] }), {
+    assert.equal(sent.contents[0].parts[0].text, "Evaluate this find");
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"suggestedName":"Test item"}' }] } }] }), {
       status: 200,
-      headers: { "content-type": "application/json", "x-ratelimit-remaining-requests": "149" }
+      headers: { "content-type": "application/json" }
     });
   };
 
@@ -52,12 +50,12 @@ test("AI endpoint calls GitHub Models without returning the secret", async () =>
   const payload = await response.json();
   assert.equal(response.status, 200);
   assert.equal(payload.output, '{"suggestedName":"Test item"}');
-  assert.equal(payload.remaining, 149);
-  assert.doesNotMatch(JSON.stringify(payload), /private-test-token/);
+  assert.equal(payload.model, "gemini-3.6-flash");
+  assert.doesNotMatch(JSON.stringify(payload), /private-test-key/);
 });
 
 test("AI endpoint rejects unsupported image data before calling the model", async () => {
-  setEnvironment({ GITHUB_MODELS_TOKEN: "private-test-token" });
+  setEnvironment({ GEMINI_API_KEY: "private-test-key" });
   globalThis.fetch = async () => {
     throw new Error("upstream should not be called");
   };
@@ -65,4 +63,3 @@ test("AI endpoint rejects unsupported image data before calling the model", asyn
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /unsupported/i);
 });
-
