@@ -67,6 +67,19 @@ function safeWebUrl(value) {
   }
 }
 
+function icon(name) {
+  const paths = {
+    mark: '<path d="M7 5.5h10M7 9.5h7M7 13.5h5M16.5 12v6m-3-3h6"/>',
+    home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
+    camera: '<path d="M4 7h3l1.5-2h7L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="4"/>',
+    flips: '<path d="M4 6h16v14H4zM7 3h10v3M8 11h8M8 15h5"/>',
+    rules: '<path d="M12 3 4.5 6v5.4c0 4.6 3.2 8.8 7.5 9.6 4.3-.8 7.5-5 7.5-9.6V6Z"/><path d="m9 12 2 2 4-4"/>',
+    image: '<path d="M4 4h16v16H4z"/><circle cx="9" cy="9" r="2"/><path d="m4 17 5-5 4 4 2-2 5 5"/>',
+    arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>'
+  };
+  return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.mark}</svg>`;
+}
+
 function sortItems(items) {
   return [...items].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 }
@@ -96,27 +109,27 @@ function layout(content, currentRoute = route()) {
     <div class="app-shell">
       <header class="topbar">
         <a class="topbar-brand" href="#home" aria-label="Flip Finder AI home">
-          <span class="brand-mark" aria-hidden="true">FF</span>
+          <span class="brand-mark" aria-hidden="true">${icon("mark")}</span>
           <span class="topbar-title">
-            <strong>Flip Finder AI</strong>
-            <span>${escapeHtml(state.settings.homeArea)}</span>
+            <strong>Flip Finder</strong>
+            <span>${escapeHtml(state.settings.homeArea)} · PEI</span>
           </span>
         </a>
-        <button class="quiet-button" data-action="install-help" type="button" aria-label="Installation help" style="min-height:40px;padding:.55rem .7rem">iPhone</button>
+        <button class="ai-status" data-action="install-help" type="button" aria-label="App and AI status"><i></i>AI online</button>
       </header>
       <main class="main-content">${content}</main>
       <nav class="bottom-nav" aria-label="Main navigation">
-        ${navLink("home", "⌂", "Home", active)}
-        ${navLink("evaluate", "＋", "Evaluate", active)}
-        ${navLink("projects", "▣", "Projects", active)}
-        ${navLink("settings", "⚙", "Settings", active)}
+        ${navLink("home", "home", "Home", active)}
+        ${navLink("evaluate", "camera", "Evaluate", active)}
+        ${navLink("projects", "flips", "Projects", active)}
+        ${navLink("settings", "rules", "Settings", active)}
       </nav>
     </div>`;
 }
 
-function navLink(name, icon, label, active) {
+function navLink(name, iconName, label, active) {
   return `<a class="nav-link ${active === name ? "active" : ""}" href="#${name}">
-    <span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span>
+    <span class="nav-icon" aria-hidden="true">${icon(iconName)}</span><span>${label}</span>
   </a>`;
 }
 
@@ -248,26 +261,36 @@ function renderHome() {
   const needsDecision = state.items.filter((item) => !item.analysis && !isClosedStage(item.stage)).slice(0, 3);
   const activeProjects = state.items.filter((item) => item.analysis && !isClosedStage(item.stage)).slice(0, 3);
   return `
-    <section class="hero-card">
-      <p class="eyebrow">Your personal flipping assistant</p>
-      <h1>Spot it. Check it. Flip it.</h1>
-      <p>Upload a Marketplace or Kijiji screenshot, get an AI decision, and keep the entire flip in one place.</p>
-      <a class="primary-button" href="#evaluate">＋ Evaluate a Find</a>
+    <section class="command-hero professional-hero">
+      <div class="hero-kicker"><span class="status-dot"></span>Smart resale analysis</div>
+      <h1>Know the margin<br>before you buy.</h1>
+      <p>Photograph an item or add a listing. Flip Finder identifies it, estimates the local resale value, and applies your buying rules.</p>
+      <a class="primary-button hero-button" href="#evaluate">${icon("camera")}<span>Evaluate a new find</span>${icon("arrow")}</a>
+      <div class="process-line"><span>Identify</span><i></i><span>Value</span><i></i><span>Decide</span></div>
     </section>
 
-    <section class="metric-grid" aria-label="Dashboard summary">
-      ${metric("Active finds", stats.active, "Open projects")}
-      ${metric("Money invested", formatMoney(stats.totalInvested), "Current projects")}
-      ${metric("Expected profit", formatMoney(stats.expectedProfit), "Conservative total", true)}
-      ${metric("Profit recorded", formatMoney(stats.soldProfit), "Completed sales", true)}
+    <section class="performance-panel" aria-label="Dashboard summary">
+      <div class="performance-primary"><span>Expected profit</span><strong>${formatMoney(stats.expectedProfit)}</strong><small>Conservative open-project total</small></div>
+      <div class="performance-stats">
+        <div><strong>${stats.active}</strong><span>Active</span></div>
+        <div><strong>${formatMoney(stats.totalInvested)}</strong><span>Invested</span></div>
+        <div><strong>${formatMoney(stats.soldProfit)}</strong><span>Realized</span></div>
+      </div>
     </section>
 
-    <div class="notice">Your projects stay on this device. Use <strong>Settings → Export Backup</strong> regularly so they can be restored if Safari data is cleared.</div>
+    <section class="guardrail-card" aria-label="Your locked flip rules">
+      <div class="guardrail-head">${icon("rules")}<div><strong>Your buying guardrails</strong><span>These always override the AI</span></div></div>
+      <div class="rule-strip">
+        <div><span>Minimum profit</span><strong>${formatMoney(state.settings.minimumProfit)}</strong></div>
+        <div><span>Minimum hourly</span><strong>${formatMoney(state.settings.minimumHourly)}/hr</strong></div>
+        <div><span>Maximum invested</span><strong>${formatMoney(state.settings.maxInvestment)}</strong></div>
+      </div>
+    </section>
 
-    <section class="section-heading"><h2>Needs a decision</h2><a href="#projects">See all</a></section>
+    <section class="section-heading section-heading-strong"><div><p class="eyebrow">Opportunity board</p><h2>Needs a decision</h2></div><a href="#projects">View all</a></section>
     ${needsDecision.length ? `<div class="project-list">${needsDecision.map(projectCard).join("")}</div>` : emptyState("✓", "Nothing waiting", "Every open find has an evaluation.")}
 
-    <section class="section-heading"><h2>Active flips</h2><a href="#projects">See all</a></section>
+    <section class="section-heading section-heading-strong"><div><p class="eyebrow">In progress</p><h2>Active flips</h2></div><a href="#projects">View all</a></section>
     ${activeProjects.length ? `<div class="project-list">${activeProjects.map(projectCard).join("")}</div>` : emptyState("↗", "No active flips yet", "Evaluate a find and let the built-in AI create your first report.")}
   `;
 }
@@ -335,22 +358,19 @@ function renderProjects() {
 
 function renderEvaluate() {
   return `
-    <div class="page-head"><p class="eyebrow">New opportunity</p><h1>Evaluate a Find</h1><p>One photo and a price are enough to start. Add anything else you already know.</p></div>
+    <div class="page-head evaluate-head"><p class="eyebrow">New opportunity</p><h1>Evaluate a new find</h1><p>Start with photos, the asking price and pickup area. Flip Finder will handle the first assessment.</p></div>
     <form id="evaluate-form">
-      <section class="form-section">
-        <h2>1. Add the pictures</h2>
-        <p class="form-intro">Screenshots work best for online listings. Add close-ups of labels or damage when available.</p>
-        <div class="upload-grid">
-          <label class="upload-button" for="camera-input"><span class="upload-icon">◉</span>Take a photo<input id="camera-input" data-photo-input="draft" type="file" accept="image/*" capture="environment" /></label>
-          <label class="upload-button" for="gallery-input"><span class="upload-icon">▧</span>Upload screenshots<input id="gallery-input" data-photo-input="draft" type="file" accept="image/*" multiple /></label>
+      <section class="capture-section">
+        <div class="capture-heading"><span class="step-number">01</span><div><h2>Add the item</h2><p>Use the camera or a Marketplace / Kijiji screenshot.</p></div></div>
+        <div class="upload-grid capture-grid">
+          <label class="upload-button camera-capture" for="camera-input"><span class="upload-icon">${icon("camera")}</span><strong>Use Camera</strong><small>Take a photo now</small><input id="camera-input" data-photo-input="draft" type="file" accept="image/*" capture="environment" /></label>
+          <label class="upload-button screenshot-capture" for="gallery-input"><span class="upload-icon">${icon("image")}</span><strong>Add Listing</strong><small>Photos or screenshots</small><input id="gallery-input" data-photo-input="draft" type="file" accept="image/*" multiple /></label>
         </div>
-        <p class="form-hint" style="margin-top:.7rem">Photos are compressed on your phone before being saved.</p>
         <div class="photo-preview-grid" id="draft-photo-grid">${renderDraftPhotos()}</div>
       </section>
 
-      <section class="form-section">
-        <h2>2. Price and source</h2>
-        <p class="form-intro">Use $0 for a curbside pickup or free listing.</p>
+      <section class="form-section essential-section">
+        <div class="capture-heading"><span class="step-number">02</span><div><h2>The deal</h2><p>These three details let Flip Finder make the first call.</p></div></div>
         <div class="field-grid">
           <label class="field"><span>Asking price (CAD)</span><div class="price-wrap"><input name="askingPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required /></div></label>
           <div class="field"><span>Where did you find it?</span><div class="chip-row" style="margin:0;padding:0 0 .2rem">${SOURCES.map((source, index) => `<label class="choice-chip"><input type="radio" name="source" value="${escapeHtml(source)}" ${index === 0 ? "checked" : ""} />${escapeHtml(source)}</label>`).join("")}</div></div>
@@ -359,9 +379,11 @@ function renderEvaluate() {
         </div>
       </section>
 
-      <section class="form-section">
-        <h2>3. What do you know?</h2>
-        <p class="form-intro">Leave anything unknown blank. AI must separate facts from guesses.</p>
+      <details class="more-details">
+        <summary>+ Add details for a stronger answer</summary>
+      <section class="form-section detail-section">
+        <h2>Optional details</h2>
+        <p class="form-intro">Labels, dimensions and the seller’s notes improve the evaluation.</p>
         <div class="field-grid two-wide">
           <label class="field"><span>Your temporary item name</span><input name="name" placeholder="Example: old wooden box" /></label>
           <label class="field"><span>Dimensions</span><input name="dimensions" placeholder="Example: 24 × 18 × 36 in" /></label>
@@ -374,6 +396,7 @@ function renderEvaluate() {
           <label class="field"><span>Your question</span><div class="input-with-action"><textarea name="question" placeholder="Is this worth buying? What should I check?"></textarea><button class="voice-button" data-action="voice" data-field="question" type="button" aria-label="Speak question">🎙</button></div></label>
         </div>
       </section>
+      </details>
 
       <div class="sticky-actions">
         <div class="button-row">
@@ -498,7 +521,7 @@ function renderItem(id) {
 
 function renderAnalysisHandoff(item) {
   return `<section class="card">
-    <div class="card-head"><div><h2>Run your AI evaluation</h2><p>The app sends your saved details and up to four photos to the free GitHub Models service.</p></div><span class="ai-live-pill">Free tier</span></div>
+    <div class="card-head"><div><h2>Run your AI evaluation</h2><p>Flip Finder checks the item, likely resale range and risks against your locked buying rules.</p></div><span class="ai-live-pill">AI ready</span></div>
     <div class="notice">No copying or pasting. The result returns directly to this project. AI value ranges are estimates, not confirmed comparable sales.</div>
     <button class="primary-button button-wide" style="margin-top:13px" data-action="run-analysis" data-item-id="${escapeHtml(item.id)}" type="button">Evaluate This Item</button>
   </section>`;
@@ -506,12 +529,11 @@ function renderAnalysisHandoff(item) {
 
 function renderAnalyzedSummary(item, analysis, financials) {
   return `
-    <section class="card">
-      <div class="card-head"><div><h2>Evaluation report</h2><p>${escapeHtml(analysis.summary || analysis.mainReason || "Evaluation generated by Flip Finder AI.")}</p></div><span class="confidence-pill">${escapeHtml(analysis.confidence)} confidence</span></div>
-      ${detailRow("Opening offer", formatMoney(analysis.openingOffer))}
-      ${detailRow("Maximum price", formatMoney(analysis.maxPurchasePrice))}
+    <section class="evaluation-card">
+      <div class="card-head"><div><p class="eyebrow">AI evaluation</p><h2>The deal at a glance</h2><p>${escapeHtml(analysis.summary || analysis.mainReason || "Evaluation generated by Flip Finder AI.")}</p></div><span class="confidence-pill">${escapeHtml(analysis.confidence)}</span></div>
+      <div class="evaluation-numbers"><div><span>START OFFER</span><strong>${formatMoney(analysis.openingOffer)}</strong></div><div><span>MAXIMUM PAY</span><strong>${formatMoney(analysis.maxPurchasePrice)}</strong></div></div>
       ${detailRow("As-is resale", `${formatMoney(analysis.asIsLow)}–${formatMoney(analysis.asIsHigh)}`)}
-      ${detailRow("Improved resale", `${formatMoney(analysis.improvedLow)}–${formatMoney(analysis.improvedHigh)}`)}
+      ${detailRow("After careful improvement", `${formatMoney(analysis.improvedLow)}–${formatMoney(analysis.improvedHigh)}`)}
       ${detailRow("Expected time to sell", analysis.timeToSell || "Not estimated")}
       ${detailRow("Biggest risk", analysis.biggestRisk || "Not stated")}
       ${detailRow("Best strategy", analysis.bestStrategy || "Not stated")}
@@ -519,14 +541,14 @@ function renderAnalyzedSummary(item, analysis, financials) {
       <button class="quiet-button button-wide" style="margin-top:12px" data-action="run-analysis" data-item-id="${escapeHtml(item.id)}" type="button">Run Evaluation Again</button>
     </section>
 
-    <section class="card">
+    <section class="card facts-card">
       <h2>What the photos suggest</h2>
       ${analysisTier("Clearly visible facts", analysis.visibleFacts, "Nothing was recorded as clearly visible.")}
       ${analysisTier("Likely possibilities", analysis.likelyPossibilities, "No possibilities were recorded.")}
       ${analysisTier("Must verify in person", analysis.verifyInPerson, "No in-person checks were recorded.")}
     </section>
 
-    <section class="card">
+    <section class="card quick-help-card">
       <div class="card-head"><div><h2>Quick AI help</h2><p>Tap once. The answer is generated here and saved with this project.</p></div></div>
       <div class="quick-action-grid">${QUICK_ACTIONS.map(([key, label]) => `<button class="quick-action" data-action="quick-ai" data-prompt-action="${key}" data-item-id="${escapeHtml(item.id)}" type="button">${escapeHtml(label)}</button>`).join("")}</div>
     </section>
@@ -580,9 +602,9 @@ function renderSettings() {
     <section class="card">
       <div class="card-head"><div><h2>Privacy and cost</h2><p>Free, rate-limited AI for this personal prototype.</p></div></div>
       ${detailRow("Project storage", "On this device")}
-      ${detailRow("AI connection", "GitHub Models through a secure function")}
-      ${detailRow("AI model", "OpenAI GPT-4.1-mini")}
-      ${detailRow("Paid overages", "Disabled; free limit stops instead")}
+      ${detailRow("AI connection", "Gemini through a secure function")}
+      ${detailRow("AI model", "Gemini image and chat AI")}
+      ${detailRow("Usage", "Subject to your Gemini free-tier allowance")}
       ${detailRow("Automatic scraping", "Disabled")}
       ${detailRow("Publishing messages", "Never automatic")}
       <button class="secondary-button button-wide" style="margin-top:12px" data-action="install-help" type="button">iPhone Installation Instructions</button>

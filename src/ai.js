@@ -36,7 +36,7 @@ export async function requestAi({ mode, prompt, photos = [] }) {
         throw new Error("The free AI service is not connected to this app address yet.");
       }
       if (response.status === 429) {
-        throw new Error("Today’s free AI allowance has been reached. Your projects are safe; try again after GitHub resets the limit.");
+        throw new Error("The free Gemini allowance has been reached for now. Your projects are safe; try again later.");
       }
       throw new Error(payload.error || "The AI could not answer right now. Try again in a moment.");
     }
@@ -47,7 +47,7 @@ export async function requestAi({ mode, prompt, photos = [] }) {
 
     return {
       output: payload.output,
-      model: payload.model || "GitHub Models",
+      model: payload.model || "Gemini 3.6 Flash",
       remaining: payload.remaining ?? null
     };
   } catch (error) {
