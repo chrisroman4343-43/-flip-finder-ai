@@ -56,14 +56,14 @@ await page.route("**/api/ai", async (route) => {
     contentType: "application/json",
     body: JSON.stringify({
       output: body.mode === "analysis" ? JSON.stringify(result) : "Check the structure, odour, moisture, pests and original markings before buying.",
-      model: "openai/gpt-4.1-mini",
+      model: "gemini-3.6-flash",
       remaining: 149
     })
   });
 });
 
 await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
-await page.getByRole("heading", { name: "Spot it. Check it. Flip it." }).waitFor();
+await page.getByRole("heading", { name: /Found something/ }).waitFor();
 assert.equal(await page.locator(".project-card").count(), 2);
 await page.screenshot({ path: "tests/home-mobile.png", fullPage: true });
 
