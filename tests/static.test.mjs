@@ -32,10 +32,10 @@ test("the app loads no third-party scripts or styles", async () => {
   assert.doesNotMatch(html, /<(script|link)[^>]+https?:\/\//i);
 });
 
-test("the public evaluation prompt uses generic defaults and no numbered street address", () => {
+test("the public evaluation prompt uses PEI rules and no numbered street address", () => {
   const prompt = buildAnalysisPrompt({ source: "Kijiji", askingPrice: 10 }, DEFAULT_SETTINGS);
-  assert.match(prompt, /Your local used market/);
-  assert.match(prompt, /50 km of your home area/);
+  assert.match(prompt, /Market: Prince Edward Island, Canada/);
+  assert.match(prompt, /Search radius: 70 km from Charlottetown/);
   assert.doesNotMatch(prompt, /\b\d{1,5}\s+[A-Za-z]+\s+(Drive|Street|Road|Avenue)\b/i);
 });
 
@@ -44,9 +44,9 @@ test("the free AI integration keeps credentials out of public code", async () =>
   const server = await readFile(resolve(root, "netlify/functions/ai.mts"), "utf8");
   const ignore = await readFile(resolve(root, ".gitignore"), "utf8");
   assert.match(client, /https:\/\/flip-finder-ai-api\.netlify\.app\/api\/ai/);
-  assert.match(server, /Netlify\.env\.get\("GITHUB_MODELS_TOKEN"\)/);
-  assert.match(server, /openai\/gpt-4\.1-mini/);
-  assert.doesNotMatch(`${client}\n${server}`, /github_pat_[A-Za-z0-9_]{20,}/);
+  assert.match(server, /Netlify\.env\.get\("GEMINI_API_KEY"\)/);
+  assert.match(server, /gemini-3\.6-flash/);
+  assert.doesNotMatch(`${client}\n${server}`, /(github_pat_|AIza)[A-Za-z0-9_-]{20,}/);
   assert.match(ignore, /^\.env$/m);
 });
 
