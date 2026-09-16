@@ -1,6 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
 
-const MODEL = "gemini-3.6-flash";
+const MODEL = "gemini-2.5-flash";
 const MAX_BODY_BYTES = 5_500_000;
 const MAX_PROMPT_LENGTH = 30_000;
 const MAX_PHOTOS = 4;
