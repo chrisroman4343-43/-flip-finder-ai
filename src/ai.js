@@ -47,7 +47,7 @@ export async function requestAi({ mode, prompt, photos = [] }) {
 
     return {
       output: payload.output,
-      model: payload.model || "Gemini 3.6 Flash",
+      model: payload.model || "Gemini 2.5 Flash",
       remaining: payload.remaining ?? null
     };
   } catch (error) {
