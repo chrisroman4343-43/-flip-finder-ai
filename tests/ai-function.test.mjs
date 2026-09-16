@@ -37,7 +37,7 @@ test("AI endpoint refuses to run until the server-side token is configured", asy
 test("AI endpoint calls Gemini without returning the secret", async () => {
   setEnvironment({ GEMINI_API_KEY: "private-test-key" });
   globalThis.fetch = async (url, options) => {
-    assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=private-test-key");
+    assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=private-test-key");
     const sent = JSON.parse(options.body);
     assert.equal(sent.contents[0].parts[0].text, "Evaluate this find");
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"suggestedName":"Test item"}' }] } }] }), {
@@ -50,7 +50,7 @@ test("AI endpoint calls Gemini without returning the secret", async () => {
   const payload = await response.json();
   assert.equal(response.status, 200);
   assert.equal(payload.output, '{"suggestedName":"Test item"}');
-  assert.equal(payload.model, "gemini-2.5-flash");
+  assert.equal(payload.model, "gemini-3.6-flash");
   assert.doesNotMatch(JSON.stringify(payload), /private-test-key/);
 });
 
