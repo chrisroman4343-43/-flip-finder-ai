@@ -261,29 +261,32 @@ function renderHome() {
   const needsDecision = state.items.filter((item) => !item.analysis && !isClosedStage(item.stage)).slice(0, 3);
   const activeProjects = state.items.filter((item) => item.analysis && !isClosedStage(item.stage)).slice(0, 3);
   return `
-    <section class="command-hero professional-hero">
-      <div class="hero-kicker"><span class="status-dot"></span>Smart resale analysis</div>
-      <h1>Know the margin<br>before you buy.</h1>
-      <p>Photograph an item or add a listing. Flip Finder identifies it, estimates the local resale value, and applies your buying rules.</p>
-      <a class="primary-button hero-button" href="#evaluate">${icon("camera")}<span>Evaluate a new find</span>${icon("arrow")}</a>
-      <div class="process-line"><span>Identify</span><i></i><span>Value</span><i></i><span>Decide</span></div>
-    </section>
-
-    <section class="performance-panel" aria-label="Dashboard summary">
-      <div class="performance-primary"><span>Expected profit</span><strong>${formatMoney(stats.expectedProfit)}</strong><small>Conservative open-project total</small></div>
-      <div class="performance-stats">
-        <div><strong>${stats.active}</strong><span>Active</span></div>
-        <div><strong>${formatMoney(stats.totalInvested)}</strong><span>Invested</span></div>
-        <div><strong>${formatMoney(stats.soldProfit)}</strong><span>Realized</span></div>
+    <section class="source-command">
+      <div class="source-command-copy">
+        <div class="hero-kicker"><span class="status-dot"></span>PEI sourcing desk</div>
+        <h1>Find the flip.<br><span>Know the margin.</span></h1>
+        <p>Photograph the item or add the listing. Your fixed buying rules make the final call.</p>
+        <a class="primary-button hero-button" href="#evaluate">${icon("camera")}<span>Start an evaluation</span>${icon("arrow")}</a>
+      </div>
+      <div class="source-command-visual" aria-hidden="true">
+        <div class="scanner-frame"><span>${icon("camera")}</span><i></i><i></i><i></i><i></i></div>
+        <small>PHOTO · LISTING · DECISION</small>
       </div>
     </section>
 
-    <section class="guardrail-card" aria-label="Your locked flip rules">
-      <div class="guardrail-head">${icon("rules")}<div><strong>Your buying guardrails</strong><span>These always override the AI</span></div></div>
-      <div class="rule-strip">
-        <div><span>Minimum profit</span><strong>${formatMoney(state.settings.minimumProfit)}</strong></div>
-        <div><span>Minimum hourly</span><strong>${formatMoney(state.settings.minimumHourly)}/hr</strong></div>
-        <div><span>Maximum invested</span><strong>${formatMoney(state.settings.maxInvestment)}</strong></div>
+    <section class="portfolio-board" aria-label="Dashboard summary">
+      <div class="portfolio-lead"><span>Expected profit</span><strong>${formatMoney(stats.expectedProfit)}</strong><small>Conservative open-project total</small></div>
+      <div class="portfolio-stat"><span>Open projects</span><strong>${stats.active}</strong></div>
+      <div class="portfolio-stat"><span>Capital in use</span><strong>${formatMoney(stats.totalInvested)}</strong></div>
+      <div class="portfolio-stat"><span>Realized profit</span><strong>${formatMoney(stats.soldProfit)}</strong></div>
+    </section>
+
+    <section class="rule-engine" aria-label="Your locked flip rules">
+      <div class="rule-engine-title">${icon("rules")}<div><strong>Rule engine</strong><span>Always overrides AI enthusiasm</span></div></div>
+      <div class="rule-engine-values">
+        <div><span>Profit floor</span><strong>${formatMoney(state.settings.minimumProfit)}</strong></div>
+        <div><span>Hourly floor</span><strong>${formatMoney(state.settings.minimumHourly)}/hr</strong></div>
+        <div><span>Investment cap</span><strong>${formatMoney(state.settings.maxInvestment)}</strong></div>
       </div>
     </section>
 
@@ -358,19 +361,24 @@ function renderProjects() {
 
 function renderEvaluate() {
   return `
-    <div class="page-head evaluate-head"><p class="eyebrow">New opportunity</p><h1>Evaluate a new find</h1><p>Start with photos, the asking price and pickup area. Flip Finder will handle the first assessment.</p></div>
+    <div class="page-head evaluate-head"><p class="eyebrow">New evaluation</p><h1>What did you find?</h1><p>Add the item first. Price and pickup details come next.</p></div>
     <form id="evaluate-form">
-      <section class="capture-section">
-        <div class="capture-heading"><span class="step-number">01</span><div><h2>Add the item</h2><p>Use the camera or a Marketplace / Kijiji screenshot.</p></div></div>
-        <div class="upload-grid capture-grid">
-          <label class="upload-button camera-capture" for="camera-input"><span class="upload-icon">${icon("camera")}</span><strong>Use Camera</strong><small>Take a photo now</small><input id="camera-input" data-photo-input="draft" type="file" accept="image/*" capture="environment" /></label>
-          <label class="upload-button screenshot-capture" for="gallery-input"><span class="upload-icon">${icon("image")}</span><strong>Add Listing</strong><small>Photos or screenshots</small><input id="gallery-input" data-photo-input="draft" type="file" accept="image/*" multiple /></label>
+      <section class="capture-stage">
+        <div class="capture-heading"><span class="step-number">01</span><div><h2>Show Flip Finder the item</h2><p>A clear item photo or the complete listing works best.</p></div></div>
+        <div class="capture-actions">
+          <label class="primary-capture" for="camera-input">
+            <span class="capture-reticle" aria-hidden="true"><i></i><i></i><i></i><i></i>${icon("camera")}</span>
+            <span><strong>Photograph item</strong><small>Open the rear camera</small></span>
+            <span class="capture-arrow">${icon("arrow")}</span>
+            <input id="camera-input" data-photo-input="draft" type="file" accept="image/*" capture="environment" />
+          </label>
+          <label class="listing-capture" for="gallery-input"><span class="upload-icon">${icon("image")}</span><span><strong>Add listing screenshots</strong><small>Facebook, Kijiji or saved photos</small></span><span class="capture-arrow">${icon("arrow")}</span><input id="gallery-input" data-photo-input="draft" type="file" accept="image/*" multiple /></label>
         </div>
         <div class="photo-preview-grid" id="draft-photo-grid" role="status" aria-live="polite" aria-label="Selected photos">${renderDraftPhotos()}</div>
       </section>
 
-      <section class="form-section essential-section">
-        <div class="capture-heading"><span class="step-number">02</span><div><h2>The deal</h2><p>These three details let Flip Finder make the first call.</p></div></div>
+      <section class="deal-stage essential-section">
+        <div class="capture-heading"><span class="step-number">02</span><div><h2>Set the deal</h2><p>The seller's price and pickup area drive the recommendation.</p></div></div>
         <div class="field-grid">
           <label class="field"><span>Asking price (CAD)</span><div class="price-wrap"><input name="askingPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required /></div></label>
           <div class="field"><span>Where did you find it?</span><div class="source-chip-scroller"><div class="chip-row source-chip-row" role="radiogroup" aria-label="Listing source">${SOURCES.map((source, index) => `<label class="choice-chip"><input type="radio" name="source" value="${escapeHtml(source)}" ${index === 0 ? "checked" : ""} />${escapeHtml(source)}</label>`).join("")}</div><span class="source-scroll-affordance" aria-hidden="true">›</span></div></div>
@@ -444,10 +452,16 @@ function renderItem(id) {
       </div>
     </section>
 
-    <section class="verdict-card ${decision.tone}">
-      <span class="verdict-label">Your personal verdict</span>
-      <strong>${escapeHtml(decision.verdict)}</strong>
+    <section class="decision-card ${decision.tone}">
+      <div class="decision-heading"><span class="verdict-label">Your personal verdict</span><span class="rules-applied">Rules applied</span></div>
+      <strong class="decision-verdict">${escapeHtml(decision.verdict)}</strong>
       <p>${escapeHtml(decision.reason)}</p>
+      <div class="decision-economics" aria-label="Decision economics">
+        <div><span>Seller asking</span><strong>${item.askingPrice === "" || item.askingPrice === null || item.askingPrice === undefined ? "Unknown" : numberValue(item.askingPrice) === 0 ? "Free" : formatMoney(item.askingPrice)}</strong></div>
+        <div><span>Maximum pay</span><strong>${analysis ? formatMoney(analysis.maxPurchasePrice) : "—"}</strong></div>
+        <div><span>Expected profit</span><strong>${analysis ? formatMoney(financials.expectedNetLow) : "—"}</strong></div>
+        <div><span>Return / hour</span><strong>${financials.expectedProfitPerHour === null ? "—" : `${formatMoney(financials.expectedProfitPerHour)}/hr`}</strong></div>
+      </div>
       ${failedRules.length ? `<ul class="rule-failures" aria-label="Buying rules not met">${failedRules.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
     </section>
 

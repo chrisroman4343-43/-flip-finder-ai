@@ -1,4 +1,4 @@
-const CACHE_NAME = "flip-finder-v7";
+const CACHE_NAME = "flip-finder-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
