@@ -32,6 +32,20 @@ test("the app loads no third-party scripts or styles", async () => {
   assert.doesNotMatch(html, /<(script|link)[^>]+https?:\/\//i);
 });
 
+test("the Evaluate mobile flow reserves safe space and exposes source scrolling", async () => {
+  const [app, styles] = await Promise.all([
+    readFile(resolve(root, "src/app.js"), "utf8"),
+    readFile(resolve(root, "styles.css"), "utf8")
+  ]);
+  assert.match(app, /source-chip-scroller/);
+  assert.match(app, /role="radiogroup" aria-label="Listing source"/);
+  assert.match(app, /id="draft-photo-grid" role="status" aria-live="polite"/);
+  assert.match(styles, /--bottom-nav-offset:/);
+  assert.match(styles, /bottom: calc\(var\(--bottom-nav-offset\) \+ 12px\)/);
+  assert.match(styles, /scroll-padding-bottom: var\(--bottom-nav-clearance\)/);
+  assert.match(styles, /\.source-scroll-affordance/);
+});
+
 test("the public evaluation prompt uses PEI rules and no numbered street address", () => {
   const prompt = buildAnalysisPrompt({ source: "Kijiji", askingPrice: 10 }, DEFAULT_SETTINGS);
   assert.match(prompt, /Market: Prince Edward Island, Canada/);

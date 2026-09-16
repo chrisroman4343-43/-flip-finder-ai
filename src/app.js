@@ -366,14 +366,14 @@ function renderEvaluate() {
           <label class="upload-button camera-capture" for="camera-input"><span class="upload-icon">${icon("camera")}</span><strong>Use Camera</strong><small>Take a photo now</small><input id="camera-input" data-photo-input="draft" type="file" accept="image/*" capture="environment" /></label>
           <label class="upload-button screenshot-capture" for="gallery-input"><span class="upload-icon">${icon("image")}</span><strong>Add Listing</strong><small>Photos or screenshots</small><input id="gallery-input" data-photo-input="draft" type="file" accept="image/*" multiple /></label>
         </div>
-        <div class="photo-preview-grid" id="draft-photo-grid">${renderDraftPhotos()}</div>
+        <div class="photo-preview-grid" id="draft-photo-grid" role="status" aria-live="polite" aria-label="Selected photos">${renderDraftPhotos()}</div>
       </section>
 
       <section class="form-section essential-section">
         <div class="capture-heading"><span class="step-number">02</span><div><h2>The deal</h2><p>These three details let Flip Finder make the first call.</p></div></div>
         <div class="field-grid">
           <label class="field"><span>Asking price (CAD)</span><div class="price-wrap"><input name="askingPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required /></div></label>
-          <div class="field"><span>Where did you find it?</span><div class="chip-row" style="margin:0;padding:0 0 .2rem">${SOURCES.map((source, index) => `<label class="choice-chip"><input type="radio" name="source" value="${escapeHtml(source)}" ${index === 0 ? "checked" : ""} />${escapeHtml(source)}</label>`).join("")}</div></div>
+          <div class="field"><span>Where did you find it?</span><div class="source-chip-scroller"><div class="chip-row source-chip-row" role="radiogroup" aria-label="Listing source">${SOURCES.map((source, index) => `<label class="choice-chip"><input type="radio" name="source" value="${escapeHtml(source)}" ${index === 0 ? "checked" : ""} />${escapeHtml(source)}</label>`).join("")}</div><span class="source-scroll-affordance" aria-hidden="true">›</span></div></div>
           <label class="field"><span>Item or listing location</span><div class="input-with-action"><input name="location" placeholder="Town or pickup area" /><button class="voice-button" data-action="voice" data-field="location" type="button" aria-label="Speak location">🎙</button></div></label>
           <label class="field"><span>Listing link</span><input name="listingLink" type="url" inputmode="url" placeholder="Optional Facebook or Kijiji link" /></label>
         </div>

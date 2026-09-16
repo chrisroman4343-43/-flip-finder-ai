@@ -25,6 +25,10 @@
   --radius-sm: 11px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-gap: 9px;
+  --bottom-nav-height: 66px;
+  --bottom-nav-offset: calc(var(--bottom-nav-height) + var(--bottom-nav-gap) + var(--safe-bottom));
+  --bottom-nav-clearance: calc(var(--bottom-nav-offset) + 18px);
   font-family: Inter, ui-rounded, "SF Pro Rounded", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--page);
@@ -39,6 +43,7 @@
 html {
   min-height: 100%;
   background: var(--page);
+  scroll-padding-bottom: var(--bottom-nav-clearance);
 }
 
 body {
@@ -58,6 +63,12 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+input,
+textarea,
+select {
+  scroll-margin-block: 1rem var(--bottom-nav-clearance);
 }
 
 button,
@@ -138,7 +149,7 @@ p {
   width: min(100%, 860px);
   min-height: 100vh;
   margin: 0 auto;
-  padding-bottom: calc(92px + var(--safe-bottom));
+  padding-bottom: var(--bottom-nav-clearance);
 }
 
 .topbar {
@@ -522,6 +533,47 @@ p {
   display: none;
 }
 
+.source-chip-scroller {
+  position: relative;
+  overflow: hidden;
+  margin: 0 -18px;
+}
+
+.source-chip-row {
+  margin: 0;
+  padding: 0 42px 0.35rem 18px;
+  scroll-padding-inline: 18px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.source-chip-scroller::after {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 52px;
+  background: linear-gradient(90deg, rgba(22, 25, 20, 0), #161914 58%);
+  content: "";
+  pointer-events: none;
+}
+
+.source-scroll-affordance {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 18px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-58%);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  background: #20251f;
+  color: var(--wood-light);
+  font-size: 1.1rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .filter-chip,
 .choice-chip {
   flex: 0 0 auto;
@@ -825,8 +877,8 @@ select:focus {
 .sticky-actions {
   position: sticky;
   z-index: 10;
-  bottom: calc(70px + var(--safe-bottom));
-  margin: 16px -18px -18px;
+  bottom: calc(var(--bottom-nav-offset) + 12px);
+  margin: 16px -18px 0;
   padding: 12px 18px;
   border-top: 1px solid var(--line);
   background: rgba(16, 20, 18, 0.94);
@@ -1549,7 +1601,7 @@ body::before {
 
 .bottom-nav {
   width: min(calc(100% - 20px), 740px);
-  bottom: 9px;
+  bottom: var(--bottom-nav-gap);
   min-height: calc(66px + var(--safe-bottom));
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 18px;

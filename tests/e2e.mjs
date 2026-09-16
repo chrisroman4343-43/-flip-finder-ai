@@ -63,13 +63,18 @@ await page.route("**/api/ai", async (route) => {
 });
 
 await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
-await page.getByRole("heading", { name: /Found something/ }).waitFor();
+await page.getByRole("heading", { name: /Know the margin/ }).waitFor();
 assert.equal(await page.locator(".project-card").count(), 2);
 await page.screenshot({ path: "tests/home-mobile.png", fullPage: true });
 
-await page.getByRole("link", { name: /Evaluate a Find/ }).first().click();
-await page.getByLabel("Upload screenshots").setInputFiles("assets/icon-512.png");
+await page.getByRole("link", { name: "Evaluate a new find" }).click();
+assert.equal(await page.locator(".source-chip-row").evaluate((row) => row.scrollWidth > row.clientWidth), true);
+assert.equal(await page.locator(".source-scroll-affordance").isVisible(), true);
+await page.getByLabel("Add Listing").setInputFiles("assets/icon-512.png");
+await page.locator("#draft-photo-grid img").waitFor();
+assert.equal(await page.locator("#draft-photo-grid").getAttribute("aria-live"), "polite");
 await page.getByLabel("Asking price (CAD)").fill("10");
+await page.getByText("Add details for a stronger answer").click();
 await page.getByLabel("Your temporary item name").fill("Test wooden box");
 await page.getByLabel("Seller description").fill("Small used wooden storage box with visible printing.");
 await page.getByRole("button", { name: "Evaluate with AI" }).click();
