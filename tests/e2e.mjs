@@ -19,33 +19,36 @@ page.on("console", (message) => {
 });
 
 const result = {
-  suggestedName: "Printed wooden storage box",
-  category: "Vintage storage",
-  likelyUse: "Storage or display",
-  visibleFacts: ["Wooden boards and printed lettering are visible"],
-  likelyPossibilities: ["It may have decorative resale appeal"],
-  verifyInPerson: ["Check for mould, pests and loose joints"],
-  condition: "Used condition",
-  valueFeatures: ["Original printed lettering"],
+  suggestedName: "Wrought-iron and wood coffee table",
+  identificationConfidence: "Medium",
+  category: "Furniture",
+  likelyUse: "Coffee table with a recessed glass insert",
+  visibleFacts: ["A dark wrought-iron frame and wood surround are visible", "The recessed centre has no glass insert"],
+  likelyPossibilities: ["The centre likely originally held a glass panel"],
+  verifyInPerson: ["Measure the depth and dimensions of the top recess", "Check the welds for cracks", "Verify dimensions for loading into a Nissan Rogue"],
+  condition: "Used with missing glass insert",
+  valueFeatures: ["Decorative wrought-iron base"],
   safetyConcerns: ["None visible"],
-  openingOffer: 5,
-  maxPurchasePrice: 20,
-  asIsLow: 80,
-  asIsHigh: 110,
-  improvedLow: 100,
-  improvedHigh: 130,
+  openingOffer: 0,
+  maxPurchasePrice: 0,
+  asIsLow: 10,
+  asIsHigh: 25,
+  improvedLow: 45,
+  improvedHigh: 75,
   cleaningCost: 5,
-  repairCost: 0,
+  repairCost: 10,
   transportCost: 0,
   platformFees: 0,
   estimatedHours: 2,
-  timeToSell: "1 to 3 weeks",
+  effortLevel: "Light",
+  workItems: ["Source a correctly sized replacement glass panel", "Clean the wood finish", "Touch up visible scratches"],
+  timeToSell: "2 to 6 weeks",
   confidence: "Medium",
-  mainReason: "Low acquisition cost and useful decor appeal",
-  biggestRisk: "Local demand may be limited",
-  bestStrategy: "Careful cleaning and honest resale",
-  nextStep: "Inspect the interior",
-  summary: "Promising low-cost flip if the box is dry, solid and free of pests."
+  mainReason: "Free acquisition limits cash risk, but replacement glass may erase the margin",
+  biggestRisk: "Replacement glass cost and fit are unknown",
+  bestStrategy: "Confirm whether the glass is included before pickup",
+  nextStep: "Message seller to ask if the glass insert is included and request exact dimensions",
+  summary: "A free table may be usable, but missing custom glass limits the conservative resale value."
 };
 
 await page.route("**/api/ai", async (route) => {
@@ -73,13 +76,19 @@ assert.equal(await page.locator(".source-scroll-affordance").isVisible(), true);
 await page.getByLabel("Add Listing").setInputFiles("assets/icon-512.png");
 await page.locator("#draft-photo-grid img").waitFor();
 assert.equal(await page.locator("#draft-photo-grid").getAttribute("aria-live"), "polite");
-await page.getByLabel("Asking price (CAD)").fill("10");
+await page.getByLabel("Asking price (CAD)").fill("0");
 await page.getByText("Add details for a stronger answer").click();
-await page.getByLabel("Your temporary item name").fill("Test wooden box");
-await page.getByLabel("Seller description").fill("Small used wooden storage box with visible printing.");
+await page.getByLabel("Your temporary item name").fill("Wrought-iron and wood coffee table");
+await page.getByLabel("Seller description").fill("Free coffee table. Glass insert appears to be missing.");
 await page.getByRole("button", { name: "Evaluate with AI" }).click();
-await page.getByText("Buy", { exact: true }).waitFor();
-await page.getByText("$85", { exact: true }).waitFor();
+await page.getByText("Take Only If Free", { exact: true }).waitFor();
+await page.getByText("Evaluation confidence: Medium", { exact: true }).waitFor();
+await page.getByText("Identification confidence:", { exact: false }).waitFor();
+await page.getByText("Free / $0", { exact: true }).waitFor();
+await page.getByText("About 2 hrs · Light", { exact: true }).waitFor();
+await page.getByText("Clearly visible facts", { exact: true }).waitFor();
+await page.getByText("Likely possibilities", { exact: true }).waitFor();
+await page.getByText("Must verify in person", { exact: true }).waitFor();
 await page.getByRole("button", { name: "What Should I Check?" }).click();
 await page.getByRole("heading", { name: "What Should I Check?" }).waitFor();
 await page.getByRole("button", { name: "Save and Close" }).click();

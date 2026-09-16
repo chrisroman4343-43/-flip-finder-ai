@@ -930,6 +930,24 @@ select:focus {
   font-size: 0.77rem;
 }
 
+.identification-confidence {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 0.08rem 0 0.45rem;
+  padding: 0.3rem 0.56rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(11, 14, 12, 0.78);
+  color: #ddd5c9;
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.identification-confidence strong { margin-left: 0.25rem; color: var(--wood-light); }
+.identification-confidence.confidence-low { border-color: rgba(239, 143, 130, 0.48); background: rgba(93, 35, 29, 0.82); color: #ffd4ce; }
+.identification-confidence.confidence-low strong { color: #ffb7ad; }
+
 .status-pill,
 .confidence-pill,
 .source-pill {
@@ -1489,8 +1507,15 @@ h1 em {
 .evaluation-card .card-head h2 { margin-bottom: 0.35rem; }
 .evaluation-numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 16px 0 10px; }
 .evaluation-numbers > div { padding: 13px; border: 1px solid rgba(241, 182, 110, 0.17); border-radius: 12px; background: rgba(0,0,0,0.16); }
-.evaluation-numbers span { display: block; color: #a99c89; font-size: 0.57rem; font-weight: 900; letter-spacing: 0.07em; }
+.evaluation-numbers span { display: block; color: #a99c89; font-size: 0.57rem; font-weight: 900; letter-spacing: 0.07em; text-transform: uppercase; }
 .evaluation-numbers strong { display: block; margin-top: 0.38rem; color: var(--wood-light); font-size: 1.23rem; letter-spacing: -0.04em; }
+.evaluation-numbers small { display: block; margin-top: 0.3rem; color: var(--faint); font-size: 0.63rem; }
+.evaluation-numbers .seller-asking { grid-column: 1 / -1; border-color: rgba(157, 204, 150, 0.28); }
+.work-required { margin: 12px 0; padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: #0e110f; }
+.work-required > span { display: block; color: #a99c89; font-size: 0.57rem; font-weight: 900; letter-spacing: 0.07em; text-transform: uppercase; }
+.work-required > strong { display: block; margin-top: 0.4rem; color: #9fd499; font-size: 1rem; }
+.work-required ul { margin: 0.7rem 0 0; padding-left: 1.1rem; }
+.work-required li, .work-required p { margin: 0.28rem 0 0; color: var(--muted); font-size: 0.76rem; line-height: 1.45; }
 .facts-card h2, .quick-help-card h2 { font-size: 1.12rem; }
 
 @media (min-width: 620px) {

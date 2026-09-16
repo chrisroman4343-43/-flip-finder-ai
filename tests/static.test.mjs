@@ -53,6 +53,19 @@ test("the public evaluation prompt uses PEI rules and no numbered street address
   assert.doesNotMatch(prompt, /\b\d{1,5}\s+[A-Za-z]+\s+(Drive|Street|Road|Avenue)\b/i);
 });
 
+test("evaluation results label confidence, seller ask and work explicitly", async () => {
+  const [app, prompt] = await Promise.all([
+    readFile(resolve(root, "src/app.js"), "utf8"),
+    readFile(resolve(root, "src/logic.js"), "utf8")
+  ]);
+  assert.match(app, /Evaluation confidence:/);
+  assert.match(app, /Identification confidence:/);
+  assert.match(app, /Seller asking/);
+  assert.match(app, /Work required/);
+  assert.match(prompt, /"identificationConfidence"/);
+  assert.match(prompt, /"workItems"/);
+});
+
 test("the free AI integration keeps credentials out of public code", async () => {
   const client = await readFile(resolve(root, "src/ai.js"), "utf8");
   const server = await readFile(resolve(root, "netlify/functions/ai.mts"), "utf8");

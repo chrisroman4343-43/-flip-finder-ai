@@ -63,10 +63,30 @@ test("serious mould risk overrides potential profit", () => {
   assert.equal(personalizedDecision(item, DEFAULT_SETTINGS).verdict, "Avoid");
 });
 
-test("AI evaluation JSON can be extracted from surrounding text", () => {
-  const parsed = extractAnalysisJson('Result: {"suggestedName":"Drill","confidence":"medium","asIsLow":"40","visibleFacts":["Cord visible"]} done');
+test("the free coffee table fixture remains Take Only If Free under personal rules", () => {
+  const item = analyzedItem({ askingPrice: 0 });
+  Object.assign(item.analysis, {
+    improvedLow: 45,
+    improvedHigh: 75,
+    cleaningCost: 5,
+    repairCost: 10,
+    transportCost: 0,
+    platformFees: 0,
+    estimatedHours: 2,
+    confidence: "Medium"
+  });
+  const result = personalizedDecision(item, DEFAULT_SETTINGS);
+  assert.equal(result.verdict, "Take Only If Free");
+  assert.match(result.reason, /\$40 minimum/);
+});
+
+test("AI evaluation JSON can be extracted and new result fields normalized", () => {
+  const parsed = extractAnalysisJson('Result: {"suggestedName":"Drill","confidence":"medium","identificationConfidence":"low","asIsLow":"40","estimatedHours":"2","effortLevel":"light","workItems":["Clean the housing"],"visibleFacts":["Cord visible"]} done');
   assert.equal(parsed.suggestedName, "Drill");
   assert.equal(parsed.confidence, "Medium");
+  assert.equal(parsed.identificationConfidence, "Low");
+  assert.equal(parsed.effortLevel, "Light");
+  assert.deepEqual(parsed.workItems, ["Clean the housing"]);
   assert.equal(parsed.asIsLow, 40);
   assert.deepEqual(parsed.visibleFacts, ["Cord visible"]);
 });
@@ -74,4 +94,5 @@ test("AI evaluation JSON can be extracted from surrounding text", () => {
 test("currency strings from an imperfect AI response are normalized", () => {
   const parsed = extractAnalysisJson('{"confidence":"high","asIsLow":"$1,250 CAD"}');
   assert.equal(parsed.asIsLow, 1250);
+  assert.equal(parsed.identificationConfidence, "High");
 });
