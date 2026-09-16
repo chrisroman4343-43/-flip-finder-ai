@@ -106,7 +106,7 @@ function activeTab(currentRoute) {
 function layout(content, currentRoute = route()) {
   const active = activeTab(currentRoute);
   return `
-    <div class="app-shell">
+    <div class="app-shell" data-screen="${escapeHtml(currentRoute.name)}">
       <header class="topbar">
         <a class="topbar-brand" href="#home" aria-label="Flip Finder AI home">
           <span class="brand-mark" aria-hidden="true">${icon("mark")}</span>
@@ -128,7 +128,7 @@ function layout(content, currentRoute = route()) {
 }
 
 function navLink(name, iconName, label, active) {
-  return `<a class="nav-link ${active === name ? "active" : ""}" href="#${name}">
+  return `<a class="nav-link ${active === name ? "active" : ""}" ${active === name ? 'aria-current="page"' : ""} href="#${name}">
     <span class="nav-icon" aria-hidden="true">${icon(iconName)}</span><span>${label}</span>
   </a>`;
 }
@@ -426,7 +426,11 @@ function renderItem(id) {
   const decision = personalizedDecision(item, state.settings);
   const photo = item.photos?.[0]?.dataUrl;
   const name = item.name || analysis?.suggestedName || "Unidentified find";
-  const identificationConfidence = analysis?.identificationConfidence || analysis?.confidence || "Not evaluated";
+  const failedRules = [];
+  if (analysis && financials.expectedNetLow < state.settings.minimumProfit) failedRules.push(`Profit ${formatMoney(financials.expectedNetLow)} is below your ${formatMoney(state.settings.minimumProfit)} minimum.`);
+  if (analysis && financials.expectedProfitPerHour !== null && financials.expectedProfitPerHour < state.settings.minimumHourly) failedRules.push(`Hourly return ${formatMoney(financials.expectedProfitPerHour)}/hr is below your ${formatMoney(state.settings.minimumHourly)}/hr minimum.`);
+  if (analysis && financials.expectedInvestment > state.settings.maxInvestment) failedRules.push(`Investment ${formatMoney(financials.expectedInvestment)} exceeds your ${formatMoney(state.settings.maxInvestment)} limit.`);
+  const identificationConfidence = analysis?.identificationConfidence || "Not evaluated";
   const identificationConfidenceClass = String(identificationConfidence).toLowerCase();
   const link = safeWebUrl(item.listingLink);
   return `
@@ -444,6 +448,7 @@ function renderItem(id) {
       <span class="verdict-label">Your personal verdict</span>
       <strong>${escapeHtml(decision.verdict)}</strong>
       <p>${escapeHtml(decision.reason)}</p>
+      ${failedRules.length ? `<ul class="rule-failures" aria-label="Buying rules not met">${failedRules.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
     </section>
 
     ${analysis ? renderAnalyzedSummary(item, analysis, financials) : renderAnalysisHandoff(item)}
@@ -535,7 +540,7 @@ function renderAnalyzedSummary(item, analysis, financials) {
   const askingPrice = numberValue(item.askingPrice);
   const sellerAsking = !hasSellerAsking ? "Unknown" : askingPrice === 0 ? "Free / $0" : formatMoney(askingPrice);
   const estimatedHours = Math.max(numberValue(analysis.estimatedHours), 0);
-  const effortLevel = analysis.effortLevel || (estimatedHours > 5 ? "Heavy" : estimatedHours > 2 ? "Moderate" : "Light");
+  const effortLevel = analysis.effortLevel || "Effort not estimated";
   const workItems = Array.isArray(analysis.workItems) ? analysis.workItems.filter(Boolean) : [];
   const workEstimate = estimatedHours > 0 ? `About ${estimatedHours} ${estimatedHours === 1 ? "hr" : "hrs"} · ${effortLevel}` : `Hours unknown · ${effortLevel}`;
   return `

@@ -1505,6 +1505,10 @@ h1 em {
 .evaluation-card { margin-bottom: 14px; padding: 18px; border: 1px solid rgba(241, 182, 110, 0.25); border-radius: 18px; background: linear-gradient(150deg, rgba(199,125,62,0.13), transparent 45%), #171a15; box-shadow: var(--shadow); }
 .evaluation-card .eyebrow { margin-bottom: 0.25rem; }
 .evaluation-card .card-head h2 { margin-bottom: 0.35rem; }
+.evaluation-card .card-head { flex-wrap: wrap; gap: 12px; }
+.evaluation-card .card-head > div { flex: 1 1 260px; min-width: 0; }
+.evaluation-card .confidence-pill { flex: 0 1 auto; max-width: 100%; }
+.rule-failures { margin: 14px 0 0; padding: 12px 0 0 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; line-height: 1.6; }
 .evaluation-numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 16px 0 10px; }
 .evaluation-numbers > div { padding: 13px; border: 1px solid rgba(241, 182, 110, 0.17); border-radius: 12px; background: rgba(0,0,0,0.16); }
 .evaluation-numbers span { display: block; color: #a99c89; font-size: 0.57rem; font-weight: 900; letter-spacing: 0.07em; text-transform: uppercase; }
@@ -1756,6 +1760,105 @@ input:focus, textarea:focus, select:focus { border-color: rgba(157,204,150,0.55)
   .command-hero.professional-hero { padding: 36px; }
   .hero-button { width: 280px; }
   .performance-primary { padding: 20px; }
+}
+
+/* Premium visual pass: retain the established palette and native typography. */
+.app-shell { width: min(100%, 1040px); }
+.main-content { padding: 28px 20px 40px; }
+.topbar { padding-inline: 24px; }
+.topbar-title strong { font-size: 1rem; letter-spacing: -.025em; }
+.topbar-title span { color: var(--muted); }
+.page-head { margin-bottom: 28px; }
+.page-head h1 { letter-spacing: -.055em; line-height: 1.08; }
+.page-head p { max-width: 52ch; line-height: 1.6; }
+.command-hero.professional-hero {
+  min-height: auto;
+  padding: 32px 24px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: radial-gradient(ellipse at 100% 0%, rgba(146,208,139,.09), transparent 62%), var(--surface);
+}
+.professional-hero h1 { max-width: 14ch; font-size: clamp(2.25rem, 6vw, 3.75rem); line-height: 1.04; letter-spacing: -.065em; font-weight: 650; }
+.professional-hero > p { max-width: 48ch; font-size: .9rem; line-height: 1.65; color: var(--muted); }
+.hero-kicker { color: var(--muted); font-size: .72rem; letter-spacing: .025em; }
+.process-line { font-size: .7rem; color: var(--muted); }
+.primary-button, .secondary-button, .quiet-button { min-height: 48px; border-radius: 12px; font-size: .84rem; font-weight: 650; letter-spacing: -.01em; }
+.primary-button:active, .secondary-button:active, .quick-action:active { transform: translateY(1px); }
+:where(a, button, summary, input, textarea, select):focus-visible { outline: 2px solid var(--profit); outline-offset: 4px; }
+.performance-panel { margin-top: 16px; border-radius: 18px; }
+.performance-primary { padding: 22px; }
+.performance-primary strong { font-size: 2.1rem; font-variant-numeric: tabular-nums; }
+.performance-primary small, .performance-stats span { color: var(--muted); font-size: .7rem; }
+.performance-stats strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.guardrail-card { padding: 18px; border-radius: 18px; }
+.guardrail-head span, .guardrail-card .rule-strip span { color: var(--muted); font-size: .69rem; }
+.guardrail-card .rule-strip > div { padding: 13px 10px; }
+.section-heading-strong { margin-top: 30px; margin-bottom: 14px; }
+.section-heading-strong h2 { font-size: 1.18rem; letter-spacing: -.025em; }
+.section-heading a { min-height: 44px; display: inline-flex; align-items: center; font-size: .78rem; }
+.project-list { gap: 12px; }
+.project-card { padding: 14px; min-height: 110px; border-radius: 18px; }
+.project-thumb { width: 80px; height: 88px; border-radius: 12px; flex-shrink: 0; }
+.project-body { min-width: 0; }
+.project-body strong { font-size: .96rem; line-height: 1.35; }
+.project-body span { color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.project-money { font-variant-numeric: tabular-nums; }
+.card, .form-section, .capture-section, .essential-section, .evaluation-card { padding: 22px; border-radius: 18px; }
+.card-head h2, .capture-heading h2 { letter-spacing: -.025em; }
+.field > span { font-size: .8rem; color: var(--muted); }
+input, textarea, select { min-height: 48px; font-size: 16px; border-radius: 11px; }
+.upload-button { min-height: 144px; gap: 10px; border-radius: 16px; }
+.upload-button small { font-size: .73rem; }
+.step-number { border-radius: 50%; width: 30px; height: 30px; }
+.source-chip-scroller { margin-inline: -22px; }
+.source-chip-row { padding-left: 22px; scroll-padding-inline: 22px; }
+.item-hero { margin: 0 0 20px; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; min-height: 280px; }
+.item-hero-content { padding: 72px 24px 24px; }
+.item-hero-content h1 { font-size: clamp(1.65rem, 5vw, 2.4rem); letter-spacing: -.045em; line-height: 1.15; }
+.item-meta { margin-top: 8px; line-height: 1.5; }
+.verdict-card { padding: 24px; border-radius: 18px; margin-bottom: 20px; }
+.verdict-card > strong { display: block; font-size: clamp(1.7rem, 5vw, 2.2rem); letter-spacing: -.045em; }
+.verdict-card > p { line-height: 1.65; }
+.evaluation-card .card-head { display: flex; flex-direction: column; align-items: flex-start; }
+.evaluation-card .card-head > div { flex: initial; }
+.evaluation-card .card-head p { line-height: 1.65; }
+.confidence-pill { color: var(--muted); font-weight: 500; border-radius: 8px; }
+.evaluation-numbers { gap: 10px; margin-block: 22px 16px; }
+.evaluation-numbers > div { padding: 16px; border-radius: 12px; }
+.evaluation-numbers span, .work-required > span { font-size: .69rem; letter-spacing: .04em; color: var(--muted); }
+.evaluation-numbers strong { font-size: 1.45rem; font-variant-numeric: tabular-nums; }
+.evaluation-numbers small { font-size: .7rem; color: var(--muted); }
+.detail-row { gap: 20px; padding-block: 14px; line-height: 1.5; }
+.detail-row > span { flex: 0 1 45%; }
+.detail-row > strong { flex: 1 1 55%; overflow-wrap: anywhere; }
+.work-required { padding: 18px; margin-block: 18px; }
+.work-required li, .work-required p { font-size: .84rem; line-height: 1.65; }
+.analysis-tier { padding-block: 16px; }
+.analysis-tier h3 { font-size: .92rem; }
+.analysis-tier li { line-height: 1.7; margin-bottom: 8px; }
+.metric { border-radius: 16px; padding: 18px; }
+.metric-value { font-variant-numeric: tabular-nums; }
+.quick-action { min-height: 58px; border-radius: 12px; text-align: left; line-height: 1.4; padding: 14px; }
+.bottom-nav { width: min(calc(100% - 24px), 620px); border-radius: 20px; background: rgba(18,21,18,.96); box-shadow: 0 8px 32px rgba(0,0,0,.35); }
+.nav-link { border-radius: 13px; font-size: .68rem; gap: 5px; }
+.empty-state { border: 1px dashed var(--line); border-radius: 18px; padding: 30px 20px; background: transparent; }
+@media (hover: hover) {
+  .project-card:hover, .quick-action:hover { border-color: var(--moss); background: var(--surface-2); }
+}
+@media (min-width: 760px) {
+  .main-content { padding: 36px 40px 48px; }
+  .professional-hero.command-hero { padding: 44px; }
+  .app-shell[data-screen="home"] .project-list, .app-shell[data-screen="projects"] .project-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell[data-screen="evaluate"] .main-content, .app-shell[data-screen="settings"] .main-content { max-width: 800px; margin-inline: auto; }
+  .item-hero { min-height: 340px; }
+  .item-hero-content { padding: 36px; }
+}
+@media (max-width: 360px) {
+  .main-content { padding-inline: 14px; }
+  .card, .evaluation-card { padding: 18px; }
+  .project-thumb { width: 60px; height: 76px; }
+  .detail-row { flex-wrap: wrap; gap: 6px; }
+  .detail-row > span, .detail-row > strong { flex-basis: 100%; text-align: left; }
 }
 
 @media (display-mode: standalone) {
