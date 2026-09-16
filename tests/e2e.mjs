@@ -56,7 +56,7 @@ await page.route("**/api/ai", async (route) => {
     contentType: "application/json",
     body: JSON.stringify({
       output: body.mode === "analysis" ? JSON.stringify(result) : "Check the structure, odour, moisture, pests and original markings before buying.",
-      model: "gemini-3.6-flash",
+      model: "gemini-2.5-flash",
       remaining: 149
     })
   });
