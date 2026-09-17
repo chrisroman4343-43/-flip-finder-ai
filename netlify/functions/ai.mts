@@ -21,6 +21,25 @@ function corsHeaders(origin: string | null) { return origin ? { "access-control-
 function validPhoto(value: unknown): value is string { return typeof value === "string" && value.length <= MAX_PHOTO_LENGTH && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=\r\n]+$/i.test(value); }
 function photoPart(dataUrl: string) { const match = dataUrl.match(/^data:image\/(jpeg|png|webp);base64,(.+)$/i); return match ? { inlineData: { mimeType: `image/${match[1].toLowerCase()}`, data: match[2] } } : null; }
 
+function groundedOutput(result: any) {
+  const sources = new Map<string, { title: string; url: string }>();
+  const text = (result?.steps || [])
+    .filter((step: any) => step?.type === "model_output")
+    .flatMap((step: any) => step?.content || [])
+    .filter((content: any) => content?.type === "text" && typeof content?.text === "string")
+    .map((content: any) => {
+      for (const annotation of content.annotations || []) {
+        if (annotation?.type === "url_citation" && /^https:\/\//i.test(annotation.url || "")) {
+          let fallbackTitle = "Grounded source";
+          try { fallbackTitle = new URL(annotation.url).hostname; } catch { /* Keep the safe fallback title. */ }
+          sources.set(annotation.url, { title: String(annotation.title || fallbackTitle), url: annotation.url });
+        }
+      }
+      return content.text;
+    }).join("\n").trim();
+  return { output: text, citations: [...sources.values()].slice(0, 12) };
+}
+
 export default async (request: Request, context: Context) => {
   const origin = allowedOrigin(request);
   if (origin === null) return json({ error: "This app address is not allowed." }, 403);
@@ -40,11 +59,33 @@ export default async (request: Request, context: Context) => {
     input = JSON.parse(raw);
   } catch { return json({ error: "The AI request was not valid." }, 400, cors); }
 
-  const mode = input.mode === "analysis" ? "analysis" : input.mode === "chat" ? "chat" : null;
+  const mode = input.mode === "analysis" ? "analysis" : input.mode === "chat" ? "chat" : input.mode === "listing" ? "listing" : input.mode === "market" ? "market" : null;
   const prompt = typeof input.prompt === "string" ? input.prompt.trim() : "";
   const photos = Array.isArray(input.photos) ? input.photos.slice(0, MAX_PHOTOS) : [];
   if (!mode || !prompt || prompt.length > MAX_PROMPT_LENGTH) return json({ error: "The AI request is missing information or is too long." }, 400, cors);
   if (photos.some((photo) => !validPhoto(photo))) return json({ error: "One of the photos is unsupported or too large." }, 400, cors);
+
+  if (mode === "market") {
+    try {
+      const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({ model: MODEL, input: prompt, tools: [{ type: "google_search" }] })
+      });
+      const result = await upstream.json().catch(() => ({}));
+      if (!upstream.ok) {
+        const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : result?.error?.message || "Market research could not be completed.";
+        return json({ error: message }, upstream.status === 429 ? 429 : 502, cors);
+      }
+      const grounded = groundedOutput(result);
+      if (!grounded.output) return json({ error: "Market research returned no usable result." }, 502, cors);
+      console.log(JSON.stringify({ requestId: context.requestId, mode, model: MODEL, citations: grounded.citations.length, status: "ok" }));
+      return json({ ...grounded, model: MODEL, remaining: null }, 200, cors);
+    } catch (error) {
+      console.error(JSON.stringify({ requestId: context.requestId, mode, status: "failed", message: error instanceof Error ? error.message : "unknown" }));
+      return json({ error: "Market research could not be reached. Try again shortly." }, 502, cors);
+    }
+  }
 
   const parts = [
     { text: prompt },
@@ -62,8 +103,8 @@ export default async (request: Request, context: Context) => {
         contents: [{ role: "user", parts }],
         generationConfig: {
           temperature: mode === "analysis" ? 0.15 : 0.35,
-          maxOutputTokens: mode === "analysis" ? 2400 : 1800,
-          ...(mode === "analysis" ? { responseMimeType: "application/json" } : {})
+          maxOutputTokens: mode === "analysis" || mode === "listing" ? 2400 : 1800,
+          ...(mode === "analysis" || mode === "listing" ? { responseMimeType: "application/json" } : {})
         }
       })
     });
