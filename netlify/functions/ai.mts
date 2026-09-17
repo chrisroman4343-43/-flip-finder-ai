@@ -1,6 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
 
-const MODEL = "gemini-3.6-flash";
+const MODEL = "gemini-2.5-flash";
 const MAX_BODY_BYTES = 5_500_000;
 const MAX_PROMPT_LENGTH = 30_000;
 const MAX_PHOTOS = 4;
@@ -18,6 +18,14 @@ function allowedOrigin(request: Request) {
   return origin === ownOrigin || configured.includes(origin) || local ? origin : null;
 }
 function corsHeaders(origin: string | null) { return origin ? { "access-control-allow-origin": origin, "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "content-type", vary: "Origin" } : {}; }
+function upstreamError(result: any, fallback: string) {
+  const message = String(result?.error?.message || "");
+  const status = String(result?.error?.status || "");
+  if (/api key not valid|api_key_invalid/i.test(`${message} ${status}`)) {
+    return "The Gemini API key saved in Netlify is invalid. Replace GEMINI_API_KEY with a current key from Google AI Studio.";
+  }
+  return message || fallback;
+}
 function validPhoto(value: unknown): value is string { return typeof value === "string" && value.length <= MAX_PHOTO_LENGTH && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=\r\n]+$/i.test(value); }
 function photoPart(dataUrl: string) { const match = dataUrl.match(/^data:image\/(jpeg|png|webp);base64,(.+)$/i); return match ? { inlineData: { mimeType: `image/${match[1].toLowerCase()}`, data: match[2] } } : null; }
 
@@ -74,7 +82,7 @@ export default async (request: Request, context: Context) => {
       });
       const result = await upstream.json().catch(() => ({}));
       if (!upstream.ok) {
-        const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : result?.error?.message || "Market research could not be completed.";
+        const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : upstreamError(result, "Market research could not be completed.");
         return json({ error: message }, upstream.status === 429 ? 429 : 502, cors);
       }
       const grounded = groundedOutput(result);
@@ -110,7 +118,7 @@ export default async (request: Request, context: Context) => {
     });
     const result = await upstream.json().catch(() => ({}));
     if (!upstream.ok) {
-      const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : result?.error?.message || "Gemini could not complete this request.";
+      const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : upstreamError(result, "Gemini could not complete this request.");
       return json({ error: message }, upstream.status === 429 ? 429 : 502, cors);
     }
     const output = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || "").join("").trim();
