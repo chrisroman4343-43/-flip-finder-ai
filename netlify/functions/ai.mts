@@ -48,6 +48,17 @@ function groundedOutput(result: any) {
   return { output: text, citations: [...sources.values()].slice(0, 12) };
 }
 
+function interactionOutput(result: any) {
+  if (typeof result?.output_text === "string" && result.output_text.trim()) return result.output_text.trim();
+  return (result?.steps || [])
+    .filter((step: any) => step?.type === "model_output")
+    .flatMap((step: any) => step?.content || [])
+    .filter((content: any) => content?.type === "text" && typeof content?.text === "string")
+    .map((content: any) => content.text)
+    .join("\n")
+    .trim();
+}
+
 export default async (request: Request, context: Context) => {
   const origin = allowedOrigin(request);
   if (origin === null) return json({ error: "This app address is not allowed." }, 403);
@@ -96,24 +107,30 @@ export default async (request: Request, context: Context) => {
   }
 
   const parts = [
-    { text: prompt },
-    ...photos.map((photo) => photoPart(photo)).filter(Boolean)
+    { type: "text", text: prompt },
+    ...photos.map((photo) => {
+      const part = photoPart(photo);
+      if (!part) return null;
+      return { type: "image", data: part.inlineData.data, mime_type: part.inlineData.mimeType };
+    }).filter(Boolean)
   ];
   const systemInstruction = "You are Flip Finder AI, a conservative Canadian resale-flipping assistant. Work with any item category. Clearly separate visible facts from possibilities, never invent comparable sales, use conservative local used-market estimates, preserve collectible features, disclose defects, and avoid unsafe repair advice. The app itself calculates the user's final buying verdict from fixed profit rules, so never override those rules. For normal local cash Facebook Marketplace/Kijiji sales, platform fees are zero unless the user supplies a real fee. Do not invent fuel costs or live sold listings.";
 
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+    const endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
     const upstream = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: "user", parts }],
-        generationConfig: {
+        model: MODEL,
+        store: false,
+        system_instruction: systemInstruction,
+        input: parts,
+        generation_config: {
           temperature: mode === "analysis" ? 0.15 : 0.35,
-          maxOutputTokens: mode === "analysis" || mode === "listing" ? 2400 : 1800,
-          ...(mode === "analysis" || mode === "listing" ? { responseMimeType: "application/json" } : {})
-        }
+          max_output_tokens: mode === "analysis" || mode === "listing" ? 2400 : 1800
+        },
+        ...(mode === "analysis" || mode === "listing" ? { response_format: { type: "text", mime_type: "application/json" } } : {})
       })
     });
     const result = await upstream.json().catch(() => ({}));
@@ -121,7 +138,7 @@ export default async (request: Request, context: Context) => {
       const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : upstreamError(result, "Gemini could not complete this request.");
       return json({ error: message }, upstream.status === 429 ? 429 : 502, cors);
     }
-    const output = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || "").join("").trim();
+    const output = interactionOutput(result);
     if (!output) return json({ error: "The AI returned an empty response." }, 502, cors);
     console.log(JSON.stringify({ requestId: context.requestId, mode, model: MODEL, photos: photos.length, status: "ok" }));
     return json({ output, model: MODEL, remaining: null }, 200, cors);
