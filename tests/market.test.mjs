@@ -7,21 +7,10 @@ import {
   personalizedDecision
 } from "../src/logic.js";
 import {
-  barcodeType,
   calculatorCostDefaults,
   calculatePlatformQuote,
-  isSupportedBarcode,
-  normalizeBarcode,
   recommendedPlatforms
 } from "../src/market.js";
-
-test("legacy barcode helpers normalize supported UPC, EAN and ISBN entries", () => {
-  assert.equal(normalizeBarcode(" 0-12345-67890-5 "), "012345678905");
-  assert.equal(barcodeType("012345678905"), "UPC-A");
-  assert.equal(barcodeType("978-1-4028-9462-6"), "ISBN-13 / EAN-13");
-  assert.equal(isSupportedBarcode("9781402894626"), true);
-  assert.equal(isSupportedBarcode("not a barcode"), false);
-});
 
 
 test("market evidence keeps only cited direct claims and permits labelled inference", () => {

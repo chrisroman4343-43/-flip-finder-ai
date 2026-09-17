@@ -71,7 +71,7 @@ test("AI endpoint replaces Google's raw invalid-key error with setup guidance", 
   globalThis.fetch = async () => new Response(JSON.stringify({
     error: { code: 400, message: "API key not valid. Please pass a valid API key.", status: "INVALID_ARGUMENT" }
   }), { status: 400, headers: { "content-type": "application/json" } });
-  const response = await aiHandler(request({ mode: "analysis", prompt: "Read barcode", photos: [] }), { requestId: "test-invalid-key" });
+  const response = await aiHandler(request({ mode: "analysis", prompt: "Evaluate item", photos: [] }), { requestId: "test-invalid-key" });
   const payload = await response.json();
   assert.equal(response.status, 502);
   assert.match(payload.error, /GEMINI_API_KEY/);

@@ -9,10 +9,6 @@ export function calculatorCostDefaults(item) {
   };
 }
 
-export const BARCODE_FORMATS = Object.freeze([
-  "upc_a", "upc_e", "ean_8", "ean_13", "isbn_10", "isbn_13"
-]);
-
 // Fees belong here, not inside screens. Only direct local-cash assumptions are
 // calculated automatically. Category-specific online fees remain intentionally
 // unknown until the seller supplies a current rate for that listing.
@@ -62,23 +58,6 @@ export const PLATFORM_FEES = Object.freeze([
     feeNote: "Fees and payment processing vary by shop and sale. Enter current Etsy fees before relying on this result."
   }
 ]);
-
-export function normalizeBarcode(value) {
-  return String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
-}
-
-export function barcodeType(value) {
-  const code = normalizeBarcode(value);
-  if (/^\d{12}$/.test(code)) return "UPC-A";
-  if (/^\d{8}$/.test(code)) return "EAN-8 or UPC-E";
-  if (/^\d{13}$/.test(code)) return code.startsWith("978") || code.startsWith("979") ? "ISBN-13 / EAN-13" : "EAN-13";
-  if (/^(?:\d{9}[\dX])$/.test(code)) return "ISBN-10";
-  return "Unsupported";
-}
-
-export function isSupportedBarcode(value) {
-  return barcodeType(value) !== "Unsupported";
-}
 
 export function findPlatform(id) {
   return PLATFORM_FEES.find((platform) => platform.id === id) || PLATFORM_FEES[0];

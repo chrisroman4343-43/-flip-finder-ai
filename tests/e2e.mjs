@@ -65,11 +65,9 @@ await page.route("**/api/ai", async (route) => {
     contentType: "application/json",
     body: JSON.stringify({
       output: body.mode === "analysis"
-        ? body.prompt.includes("BARCODE PHOTO READER")
-          ? JSON.stringify({ barcode: "012345678905" })
-          : JSON.stringify(result)
+        ? JSON.stringify(result)
         : body.mode === "market"
-          ? JSON.stringify(body.prompt.includes("012345678905") ? { ...market, product: {}, evidence: [], summary: "No reliable product reference was found." } : market)
+          ? JSON.stringify(market)
           : body.mode === "listing"
             ? JSON.stringify({ title: "Wrought-Iron Coffee Table — Glass Insert Missing", description: "Coffee table with missing glass insert. Please see photos and ask for dimensions.", photoGuidance: ["Photograph the empty glass recess close-up."] })
             : "Check the structure, odour, moisture, pests and original markings before buying.",
