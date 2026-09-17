@@ -48,7 +48,8 @@ export async function requestAi({ mode, prompt, photos = [] }) {
     return {
       output: payload.output,
       model: payload.model || "Gemini 3.6 Flash",
-      remaining: payload.remaining ?? null
+      remaining: payload.remaining ?? null,
+      citations: Array.isArray(payload.citations) ? payload.citations : []
     };
   } catch (error) {
     if (error.name === "AbortError") {
