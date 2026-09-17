@@ -20,6 +20,7 @@ test("manifest icons and core PWA files exist", async () => {
     "src/ai.js",
     "src/db.js",
     "src/logic.js",
+    "src/market.js",
     "netlify.toml",
     "netlify/functions/ai.mts",
     ...manifest.icons.map((icon) => icon.src.replace(/^\.\//, ""))
@@ -64,6 +65,23 @@ test("evaluation results label confidence, seller ask and work explicitly", asyn
   assert.match(app, /Work required/);
   assert.match(prompt, /"identificationConfidence"/);
   assert.match(prompt, /"workItems"/);
+});
+
+test("the scoped reseller tools have clear entry, evidence, calculator and listing states", async () => {
+  const [app, market, server] = await Promise.all([
+    readFile(resolve(root, "src/app.js"), "utf8"),
+    readFile(resolve(root, "src/market.js"), "utf8"),
+    readFile(resolve(root, "netlify/functions/ai.mts"), "utf8")
+  ]);
+  assert.match(app, /Scan barcode/);
+  assert.match(app, /No reliable product match found/);
+  assert.match(app, /Condition not assessed — visual confirmation required/);
+  assert.match(app, /Market evidence/);
+  assert.match(app, /Profit calculator/);
+  assert.match(app, /Listing toolkit/);
+  assert.match(app, /Improve photos/);
+  assert.match(market, /manual-required/);
+  assert.match(server, /google_search/);
 });
 
 test("the free AI integration keeps credentials out of public code", async () => {
