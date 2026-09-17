@@ -54,13 +54,26 @@ const result = {
 await page.route("**/api/ai", async (route) => {
   const request = route.request();
   const body = request.postDataJSON();
+  const market = {
+    product: { name: "Wrought-iron and wood coffee table", category: "Furniture" },
+    summary: "One active Canadian asking listing is available; no verified sold comp was returned.",
+    trend: "Insufficient Trend Data",
+    evidence: [{ kind: "active_asking", market: "Canada", description: "Active asking listing at $60", price: 60, sourceUrl: "https://example.com/coffee-table" }]
+  };
   await route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
-      output: body.mode === "analysis" ? JSON.stringify(result) : "Check the structure, odour, moisture, pests and original markings before buying.",
+      output: body.mode === "analysis"
+        ? JSON.stringify(result)
+        : body.mode === "market"
+          ? JSON.stringify(body.prompt.includes("012345678905") ? { ...market, product: {}, evidence: [], summary: "No reliable product reference was found." } : market)
+          : body.mode === "listing"
+            ? JSON.stringify({ title: "Wrought-Iron Coffee Table — Glass Insert Missing", description: "Coffee table with missing glass insert. Please see photos and ask for dimensions.", photoGuidance: ["Photograph the empty glass recess close-up."] })
+            : "Check the structure, odour, moisture, pests and original markings before buying.",
       model: "gemini-3.6-flash",
-      remaining: 149
+      remaining: 149,
+      citations: body.mode === "market" && !body.prompt.includes("012345678905") ? [{ title: "Active listing", url: "https://example.com/coffee-table" }] : []
     })
   });
 });
@@ -70,10 +83,17 @@ await page.getByRole("heading", { name: /Know the margin/ }).waitFor();
 assert.equal(await page.locator(".project-card").count(), 2);
 await page.screenshot({ path: "tests/home-mobile.png", fullPage: true });
 
-await page.getByRole("link", { name: "Evaluate a new find" }).click();
+await page.getByRole("link", { name: /Start an evaluation/ }).click();
 assert.equal(await page.locator(".source-chip-row").evaluate((row) => row.scrollWidth > row.clientWidth), true);
 assert.equal(await page.locator(".source-scroll-affordance").isVisible(), true);
-await page.getByLabel("Add Listing").setInputFiles("assets/icon-512.png");
+await page.getByRole("button", { name: "Scan barcode" }).click();
+await page.getByText(/manual entry on this device/i).waitFor();
+await page.getByRole("button", { name: "Use manual entry" }).click();
+await page.getByLabel("UPC, EAN or ISBN barcode").fill("012345678905");
+await page.getByRole("button", { name: "Look up" }).click();
+await page.getByText(/No reliable product match found/).waitFor();
+await page.getByRole("button", { name: "Evaluate with photos" }).click();
+await page.getByLabel("Add listing screenshots").setInputFiles("assets/icon-512.png");
 await page.locator("#draft-photo-grid img").waitFor();
 assert.equal(await page.locator("#draft-photo-grid").getAttribute("aria-live"), "polite");
 await page.getByLabel("Asking price (CAD)").fill("0");
@@ -89,6 +109,13 @@ await page.getByText("About 2 hrs · Light", { exact: true }).waitFor();
 await page.getByText("Clearly visible facts", { exact: true }).waitFor();
 await page.getByText("Likely possibilities", { exact: true }).waitFor();
 await page.getByText("Must verify in person", { exact: true }).waitFor();
+await page.getByText("Market evidence", { exact: true }).waitFor();
+await page.getByText("Active asking comp", { exact: true }).waitFor();
+await page.getByText("Profit calculator", { exact: true }).waitFor();
+await page.getByText("Platform comparison", { exact: true }).waitFor();
+await page.getByRole("button", { name: "Generate listing" }).click();
+await page.getByDisplayValue("Wrought-Iron Coffee Table — Glass Insert Missing").waitFor();
+await page.getByText("Improve photos", { exact: true }).waitFor();
 await page.getByRole("button", { name: "What Should I Check?" }).click();
 await page.getByRole("heading", { name: "What Should I Check?" }).waitFor();
 await page.getByRole("button", { name: "Save and Close" }).click();
