@@ -63,3 +63,25 @@ test("AI endpoint rejects unsupported image data before calling the model", asyn
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /unsupported/i);
 });
+
+test("market research uses Google Search grounding and returns only cited sources", async () => {
+  setEnvironment({ GEMINI_API_KEY: "private-test-key" });
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+    assert.equal(options.headers["x-goog-api-key"], "private-test-key");
+    const sent = JSON.parse(options.body);
+    assert.deepEqual(sent.tools, [{ type: "google_search" }]);
+    return new Response(JSON.stringify({
+      steps: [{
+        type: "model_output",
+        content: [{ type: "text", text: "{\"summary\":\"Grounded\"}", annotations: [{ type: "url_citation", url: "https://example.com/comp", title: "Comparable" }] }]
+      }]
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const response = await aiHandler(request({ mode: "market", prompt: "Find evidence", photos: [] }), { requestId: "test-market" });
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.output, '{"summary":"Grounded"}');
+  assert.deepEqual(payload.citations, [{ title: "Comparable", url: "https://example.com/comp" }]);
+  assert.doesNotMatch(JSON.stringify(payload), /private-test-key/);
+});
