@@ -1,4 +1,7 @@
-const DEFAULT_ENDPOINT = "https://flip-finder-ai-api.netlify.app/api/ai";
+// Keep the browser request on the same Netlify deployment. This lets production,
+// deploy previews, and branch previews each reach their own server-side AI function
+// without crossing origins (which browsers correctly protect with CORS).
+const DEFAULT_ENDPOINT = "/api/ai";
 const MAX_PHOTOS = 4;
 
 function cleanPhotos(photos = []) {
