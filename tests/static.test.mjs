@@ -31,6 +31,8 @@ test("manifest icons and core PWA files exist", async () => {
 test("the app loads no third-party scripts or styles", async () => {
   const html = await readFile(resolve(root, "index.html"), "utf8");
   assert.doesNotMatch(html, /<(script|link)[^>]+https?:\/\//i);
+  assert.match(html, /styles\.css\?v=10/);
+  assert.match(html, /src\/app\.js\?v=10/);
 });
 
 test("the Evaluate mobile flow reserves safe space and exposes source scrolling", async () => {
