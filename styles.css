@@ -2168,6 +2168,8 @@ input, textarea, select { min-height: 48px; font-size: 16px; border-radius: 11px
 .quick-lookup-result > p { margin: 0; color: var(--muted); line-height: 1.55; }
 .lookup-status { color: var(--profit); font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .barcode-modal video { width: 100%; min-height: 220px; margin: 12px 0; border-radius: 15px; background: #050605; object-fit: cover; }
+.barcode-photo-capture { position: relative; margin: 18px 0 10px; cursor: pointer; }
+.barcode-photo-capture input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .flip-score-card { display: flex; align-items: stretch; justify-content: space-between; gap: 20px; margin: 0 0 16px; padding: 20px; border: 1px solid rgba(225,181,100,.24); border-radius: 20px; background: linear-gradient(125deg, rgba(225,181,100,.09), rgba(18,21,18,.8)); }
 .flip-score-card p { margin: 7px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
