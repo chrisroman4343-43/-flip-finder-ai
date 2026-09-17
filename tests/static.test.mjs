@@ -74,6 +74,9 @@ test("the scoped reseller tools have clear entry, evidence, calculator and listi
     readFile(resolve(root, "netlify/functions/ai.mts"), "utf8")
   ]);
   assert.match(app, /Scan barcode/);
+  assert.match(app, /id="barcode-photo-input"[^>]+capture="environment"/);
+  assert.match(app, /Reading barcode from photo/);
+  assert.doesNotMatch(app, /Use manual entry on this device/);
   assert.match(app, /No reliable product match found/);
   assert.match(app, /Condition not assessed — visual confirmation required/);
   assert.match(app, /Market evidence/);
