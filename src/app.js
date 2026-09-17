@@ -14,11 +14,15 @@ import {
   SOURCES,
   STAGES,
   buildAnalysisPrompt,
+  buildListingPrompt,
+  buildMarketResearchPrompt,
   buildQuickActionPrompt,
   calculateFinancials,
   createId,
   daysBetween,
   extractAnalysisJson,
+  extractListingJson,
+  extractMarketEvidence,
   formatMoney,
   formatPercent,
   isClosedStage,
@@ -26,6 +30,16 @@ import {
   personalizedDecision
 } from "./logic.js";
 import { requestAi } from "./ai.js";
+import {
+  BARCODE_FORMATS,
+  barcodeType,
+  calculateFlipScore,
+  calculatePlatformQuote,
+  formatQuoteMoney,
+  isSupportedBarcode,
+  normalizeBarcode,
+  recommendedPlatforms
+} from "./market.js";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -35,6 +49,9 @@ const state = {
   items: [],
   settings: { ...DEFAULT_SETTINGS },
   draftPhotos: [],
+  draftForm: {},
+  quickLookup: null,
+  barcodeScanner: null,
   projectFilter: "all",
   toastTimer: null
 };
@@ -360,8 +377,20 @@ function renderProjects() {
 }
 
 function renderEvaluate() {
+  const draft = state.draftForm || {};
+  const source = draft.source || SOURCES[0];
   return `
     <div class="page-head evaluate-head"><p class="eyebrow">New evaluation</p><h1>What did you find?</h1><p>Add the item first. Price and pickup details come next.</p></div>
+    <section class="quick-lookup-card" aria-label="Quick lookup">
+      <div class="card-head"><div><p class="eyebrow">Fast intake</p><h2>Quick product lookup</h2><p>Use a barcode or text to identify a retail item first. Condition still needs photos or an in-person check.</p></div></div>
+      <div class="quick-intake-actions">
+        <button class="quick-intake-button" data-action="open-barcode-scanner" type="button">Scan barcode</button>
+        <form id="manual-barcode-form" class="quick-inline-form"><label class="sr-only" for="manual-barcode">UPC, EAN or ISBN barcode</label><input id="manual-barcode" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Enter UPC, EAN or ISBN" /><button class="quiet-button" type="submit">Look up</button></form>
+        <form id="text-lookup-form" class="quick-inline-form"><label class="sr-only" for="text-lookup">Search by text</label><input id="text-lookup" name="query" autocomplete="off" placeholder="Search brand, model or product" /><button class="quiet-button" type="submit">Search</button></form>
+      </div>
+      <p class="quick-lookup-note">Supports UPC-A, UPC-E, EAN-8, EAN-13 and ISBN. Barcode lookup identifies the product only — it never confirms condition or completeness.</p>
+      ${renderQuickLookupResult()}
+    </section>
     <form id="evaluate-form">
       <section class="capture-stage">
         <div class="capture-heading"><span class="step-number">01</span><div><h2>Show Flip Finder the item</h2><p>A clear item photo or the complete listing works best.</p></div></div>
@@ -380,10 +409,10 @@ function renderEvaluate() {
       <section class="deal-stage essential-section">
         <div class="capture-heading"><span class="step-number">02</span><div><h2>Set the deal</h2><p>The seller's price and pickup area drive the recommendation.</p></div></div>
         <div class="field-grid">
-          <label class="field"><span>Asking price (CAD)</span><div class="price-wrap"><input name="askingPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required /></div></label>
-          <div class="field"><span>Where did you find it?</span><div class="source-chip-scroller"><div class="chip-row source-chip-row" role="radiogroup" aria-label="Listing source">${SOURCES.map((source, index) => `<label class="choice-chip"><input type="radio" name="source" value="${escapeHtml(source)}" ${index === 0 ? "checked" : ""} />${escapeHtml(source)}</label>`).join("")}</div><span class="source-scroll-affordance" aria-hidden="true">›</span></div></div>
-          <label class="field"><span>Item or listing location</span><div class="input-with-action"><input name="location" placeholder="Town or pickup area" /><button class="voice-button" data-action="voice" data-field="location" type="button" aria-label="Speak location">🎙</button></div></label>
-          <label class="field"><span>Listing link</span><input name="listingLink" type="url" inputmode="url" placeholder="Optional Facebook or Kijiji link" /></label>
+          <label class="field"><span>Asking price (CAD)</span><div class="price-wrap"><input name="askingPrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required value="${escapeHtml(draft.askingPrice ?? "")}" /></div></label>
+          <div class="field"><span>Where did you find it?</span><div class="source-chip-scroller"><div class="chip-row source-chip-row" role="radiogroup" aria-label="Listing source">${SOURCES.map((entry) => `<label class="choice-chip"><input type="radio" name="source" value="${escapeHtml(entry)}" ${entry === source ? "checked" : ""} />${escapeHtml(entry)}</label>`).join("")}</div><span class="source-scroll-affordance" aria-hidden="true">›</span></div></div>
+          <label class="field"><span>Item or listing location</span><div class="input-with-action"><input name="location" placeholder="Town or pickup area" value="${escapeHtml(draft.location || "")}" /><button class="voice-button" data-action="voice" data-field="location" type="button" aria-label="Speak location">🎙</button></div></label>
+          <label class="field"><span>Listing link</span><input name="listingLink" type="url" inputmode="url" placeholder="Optional Facebook or Kijiji link" value="${escapeHtml(draft.listingLink || "")}" /></label>
         </div>
       </section>
 
@@ -393,15 +422,16 @@ function renderEvaluate() {
         <h2>Optional details</h2>
         <p class="form-intro">Labels, dimensions and the seller’s notes improve the evaluation.</p>
         <div class="field-grid two-wide">
-          <label class="field"><span>Your temporary item name</span><input name="name" placeholder="Example: old wooden box" /></label>
-          <label class="field"><span>Dimensions</span><input name="dimensions" placeholder="Example: 24 × 18 × 36 in" /></label>
-          <label class="field"><span>Brand</span><input name="brand" placeholder="If visible" /></label>
-          <label class="field"><span>Model number</span><input name="model" placeholder="If visible" /></label>
+          <label class="field"><span>Your temporary item name</span><input name="name" placeholder="Example: old wooden box" value="${escapeHtml(draft.name || "")}" /></label>
+          <label class="field"><span>Dimensions</span><input name="dimensions" placeholder="Example: 24 × 18 × 36 in" value="${escapeHtml(draft.dimensions || "")}" /></label>
+          <label class="field"><span>Brand</span><input name="brand" placeholder="If visible" value="${escapeHtml(draft.brand || "")}" /></label>
+          <label class="field"><span>Model number</span><input name="model" placeholder="If visible" value="${escapeHtml(draft.model || "")}" /></label>
+          <label class="field"><span>Barcode</span><input name="barcode" inputmode="numeric" autocomplete="off" placeholder="UPC, EAN or ISBN" value="${escapeHtml(draft.barcode || "")}" /></label>
         </div>
         <div class="field-grid" style="margin-top:13px">
-          <label class="field"><span>Seller description</span><textarea name="sellerDescription" placeholder="Paste the listing description here"></textarea></label>
-          <label class="field"><span>Condition notes</span><div class="input-with-action"><textarea name="conditionNotes" placeholder="What looks damaged, missing or uncertain?"></textarea><button class="voice-button" data-action="voice" data-field="conditionNotes" type="button" aria-label="Speak condition notes">🎙</button></div></label>
-          <label class="field"><span>Your question</span><div class="input-with-action"><textarea name="question" placeholder="Is this worth buying? What should I check?"></textarea><button class="voice-button" data-action="voice" data-field="question" type="button" aria-label="Speak question">🎙</button></div></label>
+          <label class="field"><span>Seller description</span><textarea name="sellerDescription" placeholder="Paste the listing description here">${escapeHtml(draft.sellerDescription || "")}</textarea></label>
+          <label class="field"><span>Condition notes</span><div class="input-with-action"><textarea name="conditionNotes" placeholder="What looks damaged, missing or uncertain?">${escapeHtml(draft.conditionNotes || "")}</textarea><button class="voice-button" data-action="voice" data-field="conditionNotes" type="button" aria-label="Speak condition notes">🎙</button></div></label>
+          <label class="field"><span>Your question</span><div class="input-with-action"><textarea name="question" placeholder="Is this worth buying? What should I check?">${escapeHtml(draft.question || "")}</textarea><button class="voice-button" data-action="voice" data-field="question" type="button" aria-label="Speak question">🎙</button></div></label>
         </div>
       </section>
       </details>
@@ -414,6 +444,14 @@ function renderEvaluate() {
       </div>
     </form>
   `;
+}
+
+function renderQuickLookupResult() {
+  const result = state.quickLookup;
+  if (!result) return "";
+  if (!result.match) return `<div class="quick-lookup-result no-match"><strong>No reliable product match found for this ${escapeHtml(result.barcodeType || "search")}.</strong><p>Try again, enter the barcode manually, search by text, or continue with photos for a full evaluation.</p><div class="button-row"><button class="secondary-button" data-action="clear-quick-lookup" type="button">Try again</button><button class="quiet-button" data-action="continue-full-evaluation" type="button">Evaluate with photos</button></div></div>`;
+  const product = result.product || {};
+  return `<div class="quick-lookup-result"><span class="lookup-status">Product match found</span><strong>${escapeHtml(product.name || "Matched product")}</strong>${[product.brand, product.model, product.category].filter(Boolean).length ? `<p>${escapeHtml([product.brand, product.model, product.category].filter(Boolean).join(" · "))}</p>` : ""}<div class="notice warn">Condition not assessed — visual confirmation required.</div><p>${escapeHtml(result.summary || "Continue with photos and condition details before making a buying decision.")}</p><div class="button-row"><button class="primary-button" data-action="continue-full-evaluation" type="button">Continue with photos</button><button class="quiet-button" data-action="clear-quick-lookup" type="button">Clear</button></div></div>`;
 }
 
 function renderDraftPhotos() {
@@ -465,7 +503,7 @@ function renderItem(id) {
       ${failedRules.length ? `<ul class="rule-failures" aria-label="Buying rules not met">${failedRules.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
     </section>
 
-    ${analysis ? renderAnalyzedSummary(item, analysis, financials) : renderAnalysisHandoff(item)}
+    ${analysis ? `${renderFlipScore(item)}${renderAnalyzedSummary(item, analysis, financials)}${renderMarketEvidence(item)}${renderProfitCalculator(item, financials)}${renderPlatformComparison(item, financials)}${renderListingWorkspace(item)}${renderRetailPriceCheck(item)}` : renderAnalysisHandoff(item)}
 
     <section class="section-heading"><h2>Project numbers</h2></section>
     <div class="metric-grid">
@@ -498,10 +536,7 @@ function renderItem(id) {
       </form>
     </section>
 
-    <section class="card">
-      <div class="card-head"><div><h2>Photos</h2><p>Add inspection, repair or finished photographs.</p></div><label class="secondary-button" for="project-photo-input" style="min-height:40px;padding:.5rem .7rem">＋ Add<input id="project-photo-input" data-photo-input="project" data-item-id="${escapeHtml(item.id)}" type="file" accept="image/*" multiple class="sr-only" /></label></div>
-      ${item.photos?.length ? `<div class="photo-gallery">${item.photos.map((entry, index) => `<div class="gallery-photo"><img src="${safePhotoUrl(entry.dataUrl)}" alt="Project photo ${index + 1}" /></div>`).join("")}</div>` : `<p>No photos saved.</p>`}
-    </section>
+    ${analysis ? "" : `<section class="card"><div class="card-head"><div><h2>Photos</h2><p>Add inspection photographs before running an evaluation.</p></div><label class="secondary-button" for="project-photo-input" style="min-height:40px;padding:.5rem .7rem">＋ Add<input id="project-photo-input" data-photo-input="project" data-item-id="${escapeHtml(item.id)}" type="file" accept="image/*" multiple class="sr-only" /></label></div>${item.photos?.length ? `<div class="photo-gallery">${item.photos.map((entry, index) => `<div class="gallery-photo"><img src="${safePhotoUrl(entry.dataUrl)}" alt="Project photo ${index + 1}" /></div>`).join("")}</div>` : `<p>No photos saved.</p>`}</section>`}
 
     <section class="card">
       <div class="card-head"><div><h2>Expenses</h2><p>Fuel, cleaning, parts, fees or delivery.</p></div><strong>${formatMoney(financials.recordedExpenses)}</strong></div>
@@ -593,6 +628,100 @@ function renderAnalyzedSummary(item, analysis, financials) {
   `;
 }
 
+function evidenceLabel(kind) {
+  return ({ verified_sold: "Verified sold comp", active_asking: "Active asking comp", retail_reference: "Retail reference", inference: "Inference" })[kind] || "Inference";
+}
+
+function renderFlipScore(item) {
+  const score = calculateFlipScore(item, state.settings);
+  const confidence = item.analysis?.confidence || "Low";
+  return `<section class="flip-score-card"><div><p class="eyebrow">Flip score</p><strong>${score}<small>/100</small></strong><p>Transparent signal based on conservative profit, labour, confidence, investment and evidence.</p></div><div class="flip-score-side"><span>Evaluation confidence</span><strong>${escapeHtml(confidence)}</strong><small>Your personal verdict above remains authoritative.</small></div></section>`;
+}
+
+function renderMarketEvidence(item) {
+  const evidence = item.marketEvidence || {};
+  const rows = Array.isArray(evidence.evidence) ? evidence.evidence : [];
+  const sources = Array.isArray(evidence.sources) ? evidence.sources : [];
+  return `<section class="card market-evidence-card">
+    <div class="card-head"><div><p class="eyebrow">Market evidence</p><h2>What supports this estimate</h2><p>Grounded sources are separate from AI inference. Asking prices are never shown as sold prices.</p></div><span class="confidence-pill">${sources.length ? `${sources.length} source${sources.length === 1 ? "" : "s"} checked` : "No sources yet"}</span></div>
+    ${evidence.error ? `<div class="notice warn">${escapeHtml(evidence.error)}</div>` : ""}
+    ${rows.length ? `<div class="evidence-list">${rows.map((entry) => `<div class="evidence-row"><span class="evidence-kind ${escapeHtml(entry.kind)}">${escapeHtml(evidenceLabel(entry.kind))}</span><div><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(entry.market || "Market not stated")}${entry.price === null ? "" : ` · ${formatMoney(entry.price)}`}</small></div>${entry.sourceUrl ? `<a class="evidence-link" href="${escapeHtml(safeWebUrl(entry.sourceUrl))}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}</div>`).join("")}</div>` : `<div class="notice">No verified sold comps or active asking comps have been saved yet. Run grounded research, or use the AI estimate as an inference only.</div>`}
+    <div class="trend-row"><span>Market pulse</span><strong>${escapeHtml(evidence.trend || "Insufficient Trend Data")}</strong><small>${evidence.trend && evidence.trend !== "Insufficient Trend Data" ? "Based on dated grounded evidence." : "Not enough recent evidence to determine a reliable price trend."}</small></div>
+    ${sources.length ? `<details class="sources-details"><summary>Sources checked (${sources.length})</summary><ul>${sources.map((entry) => `<li><a href="${escapeHtml(safeWebUrl(entry.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(entry.title || entry.url)}</a></li>`).join("")}</ul></details>` : ""}
+    <button class="quiet-button button-wide" style="margin-top:12px" data-action="run-market-research" data-item-id="${escapeHtml(item.id)}" type="button">${sources.length ? "Refresh market evidence" : "Check market evidence"}</button>
+  </section>`;
+}
+
+function calculatorSalePrice(item, financials, scenario) {
+  if (scenario === "high") return financials.resaleHigh || 0;
+  if (scenario === "target") return financials.resaleMid || financials.resaleLow || 0;
+  return financials.resaleLow || 0;
+}
+
+function maximumBuyPriceFromQuote(quote, item) {
+  if (quote.takeHome === null) return null;
+  const hours = numberValue(item.analysis?.estimatedHours);
+  const byProfit = quote.takeHome - quote.otherCosts - numberValue(state.settings.minimumProfit);
+  const byHourly = hours > 0 ? quote.takeHome - quote.otherCosts - numberValue(state.settings.minimumHourly) * hours : Infinity;
+  const byCap = numberValue(state.settings.maxInvestment) - quote.otherCosts;
+  return Math.max(0, Math.min(byProfit, byHourly, byCap));
+}
+
+function renderProfitCalculator(item, financials) {
+  const saved = item.calculator || {};
+  const scenario = saved.scenario || "conservative";
+  const salePrice = saved.salePrice === "" || saved.salePrice === undefined ? calculatorSalePrice(item, financials, scenario) : numberValue(saved.salePrice);
+  const purchasePrice = saved.purchasePrice === "" || saved.purchasePrice === undefined ? (item.purchasePrice === "" ? item.askingPrice : item.purchasePrice) : numberValue(saved.purchasePrice);
+  const quote = calculatePlatformQuote({ platformId: saved.platformId || "facebook-local", salePrice, purchasePrice, shipping: saved.shipping || 0, otherCosts: saved.otherCosts || 0, manualFee: saved.manualFee });
+  const maximumBuy = maximumBuyPriceFromQuote(quote, item);
+  return `<section class="card profit-calculator-card">
+    <div class="card-head"><div><p class="eyebrow">Profit calculator</p><h2>What is it worth to you?</h2><p>Uses the same locked profit, hourly and investment rules as the verdict.</p></div></div>
+    <form id="profit-calculator-form" data-item-id="${escapeHtml(item.id)}">
+      <div class="scenario-row" role="radiogroup" aria-label="Sell scenario">
+        ${[["conservative", "Conservative", financials.resaleLow], ["target", "Target", financials.resaleMid], ["high", "High", financials.resaleHigh]].map(([key, label, value]) => `<label class="scenario-option ${scenario === key ? "selected" : ""}"><input type="radio" name="scenario" value="${key}" ${scenario === key ? "checked" : ""} /><span>${label}</span><strong>${formatMoney(value)}</strong></label>`).join("")}
+      </div>
+      <div class="field-grid two-wide">
+        <label class="field"><span>Purchase price</span><div class="price-wrap"><input name="purchasePrice" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(purchasePrice)}" /></div></label>
+        <label class="field"><span>Sale price</span><div class="price-wrap"><input name="salePrice" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(salePrice)}" /></div></label>
+        <label class="field"><span>Platform</span><select name="platformId">${recommendedPlatforms(item).map(({ platform }) => `<option value="${escapeHtml(platform.id)}" ${quote.platform.id === platform.id ? "selected" : ""}>${escapeHtml(platform.name)} · ${escapeHtml(platform.saleMode)}</option>`).join("")}</select></label>
+        <label class="field"><span>Shipping you pay</span><div class="price-wrap"><input name="shipping" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(quote.shipping)}" /></div></label>
+        <label class="field"><span>Other direct costs</span><div class="price-wrap"><input name="otherCosts" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(quote.otherCosts)}" /></div></label>
+        <label class="field"><span>Platform fee ${quote.platform.percentage === null ? "(enter current amount)" : ""}</span><div class="price-wrap"><input name="manualFee" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(saved.manualFee ?? "")}" placeholder="${quote.platform.percentage === null ? "Required for online quote" : "0"}" /></div></label>
+      </div>
+      <p class="calculator-fee-note">${escapeHtml(quote.platform.feeNote)} Fee estimates — confirm current platform rates before listing.</p>
+      <div class="calculator-result">
+        <div><span>Sale price</span><strong>${formatMoney(quote.sale)}</strong></div><span>−</span><div><span>Purchase cost</span><strong>${formatMoney(quote.purchase)}</strong></div><span>−</span><div><span>Platform fees</span><strong>${formatQuoteMoney(quote.fees)}</strong></div><span>−</span><div><span>Shipping + other</span><strong>${formatMoney(quote.shipping + quote.otherCosts)}</strong></div><span>=</span><div class="calculator-total"><span>Net profit</span><strong>${formatQuoteMoney(quote.netProfit)}</strong></div>
+      </div>
+      <div class="calculator-secondary"><span>Profit margin <strong>${quote.margin === null ? "Fee required" : formatPercent(quote.margin)}</strong></span><span>Maximum buy price <strong>${formatQuoteMoney(maximumBuy)}</strong></span></div>
+      <button class="secondary-button button-wide" style="margin-top:12px" type="submit">Update calculation</button>
+    </form>
+  </section>`;
+}
+
+function renderPlatformComparison(item, financials) {
+  const saved = item.calculator || {};
+  const salePrice = saved.salePrice === "" || saved.salePrice === undefined ? financials.resaleLow : numberValue(saved.salePrice);
+  const purchase = saved.purchasePrice === "" || saved.purchasePrice === undefined ? (item.purchasePrice === "" ? item.askingPrice : item.purchasePrice) : numberValue(saved.purchasePrice);
+  return `<section class="card platform-card"><div class="card-head"><div><p class="eyebrow">Where should I sell this?</p><h2>Platform comparison</h2><p>Local is favoured for bulky items; shipping only makes sense when the evidence and costs support it.</p></div></div><div class="platform-list">${recommendedPlatforms(item).map(({ platform, fit }) => { const quote = calculatePlatformQuote({ platformId: platform.id, salePrice, purchasePrice: purchase, shipping: platform.saleMode === "Local pickup" ? 0 : numberValue(saved.shipping), otherCosts: numberValue(saved.otherCosts), manualFee: saved.platformId === platform.id ? saved.manualFee : "" }); return `<div class="platform-row"><div><strong>${escapeHtml(platform.name)}</strong><span>${escapeHtml(platform.saleMode)} · ${escapeHtml(fit)}</span></div><div><small>${quote.fees === null ? "Fee estimate unavailable" : `Fee ${formatMoney(quote.fees)}`}</small><strong>${quote.takeHome === null ? "Fee required" : `${formatMoney(quote.takeHome)} take-home`}</strong></div></div>`; }).join("")}</div></section>`;
+}
+
+function renderListingWorkspace(item) {
+  const listing = item.listing || {};
+  const photos = item.photos || [];
+  const coverId = listing.coverPhotoId || photos[0]?.id;
+  return `<section class="card listing-workspace"><div class="card-head"><div><p class="eyebrow">Listing toolkit</p><h2>Prepare an honest listing</h2><p>Generate, edit, copy, then post manually. Nothing is published automatically.</p></div></div>
+    <form id="listing-form" data-item-id="${escapeHtml(item.id)}"><div class="field-grid"><label class="field"><span>Listing title</span><input name="title" maxlength="120" value="${escapeHtml(listing.title || "")}" placeholder="Generate or enter a title" /></label><label class="field"><span>Asking price</span><div class="price-wrap"><input name="askingPrice" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(listing.askingPrice ?? "")}" placeholder="Optional" /></div></label><label class="field"><span>Listing description</span><textarea name="description" rows="8" placeholder="Generate or write an honest description">${escapeHtml(listing.description || "")}</textarea></label></div><div class="button-row" style="margin-top:12px"><button class="primary-button" data-action="generate-listing" data-item-id="${escapeHtml(item.id)}" type="button">Generate listing</button><button class="secondary-button" type="submit">Save listing</button></div></form>
+    <div class="listing-actions"><button class="quiet-button" data-action="copy-listing" data-item-id="${escapeHtml(item.id)}" type="button">Copy listing</button><a class="quiet-button" href="https://www.facebook.com/marketplace/create/item" target="_blank" rel="noopener noreferrer">Open Facebook Marketplace</a><a class="quiet-button" href="https://www.kijiji.ca/p-post-ad.html" target="_blank" rel="noopener noreferrer">Open Kijiji</a></div>
+    <div class="listing-photo-manager"><div class="card-head"><div><h3>Listing photos (${photos.length}/10)</h3><p>Use actual photos of this item. Choose a cover and show defects honestly.</p></div><label class="secondary-button" for="project-photo-input" style="min-height:40px;padding:.5rem .7rem">＋ Add<input id="project-photo-input" data-photo-input="project" data-item-id="${escapeHtml(item.id)}" type="file" accept="image/*" multiple class="sr-only" /></label></div>${photos.length ? `<div class="listing-photo-grid">${photos.map((photo, index) => `<div class="listing-photo ${coverId === photo.id ? "is-cover" : ""}"><img src="${safePhotoUrl(photo.dataUrl)}" alt="Listing photo ${index + 1}" />${coverId === photo.id ? `<span>Cover</span>` : ""}<div class="photo-actions"><button data-action="set-cover-photo" data-item-id="${escapeHtml(item.id)}" data-photo-id="${escapeHtml(photo.id)}" type="button">Cover</button><button data-action="move-listing-photo" data-direction="-1" data-item-id="${escapeHtml(item.id)}" data-photo-id="${escapeHtml(photo.id)}" type="button" ${index === 0 ? "disabled" : ""}>←</button><button data-action="move-listing-photo" data-direction="1" data-item-id="${escapeHtml(item.id)}" data-photo-id="${escapeHtml(photo.id)}" type="button" ${index === photos.length - 1 ? "disabled" : ""}>→</button><button data-action="remove-project-photo" data-item-id="${escapeHtml(item.id)}" data-photo-id="${escapeHtml(photo.id)}" type="button">Remove</button></div></div>`).join("")}</div>` : `<div class="notice">No photos saved. Add actual item photos before listing.</div>`}</div>
+    ${Array.isArray(listing.photoGuidance) && listing.photoGuidance.length ? `<div class="photo-guidance"><h3>Improve photos</h3><ul>${listing.photoGuidance.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")}</ul></div>` : `<button class="quiet-button button-wide" style="margin-top:12px" data-action="improve-photos" data-item-id="${escapeHtml(item.id)}" type="button">Improve photos</button>`}
+  </section>`;
+}
+
+function renderRetailPriceCheck(item) {
+  const retail = item.marketEvidence?.retail;
+  return `<section class="card retail-card"><div class="card-head"><div><p class="eyebrow">Retail price check</p><h2>New-price context</h2><p>Retail pricing is separate from used resale evidence. It helps identify replacement-cost context for barcode retail goods, tools and electronics.</p></div></div>${retail?.error ? `<div class="notice warn">${escapeHtml(retail.error)}</div>` : retail?.sources?.length ? `<div class="notice">${escapeHtml(retail.summary)}</div><details class="sources-details"><summary>Retail sources checked (${retail.sources.length})</summary><ul>${retail.sources.map((entry) => `<li><a href="${escapeHtml(safeWebUrl(entry.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(entry.title || entry.url)}</a></li>`).join("")}</ul></details>` : `<div class="notice">Not checked. New retail price is not proof of used-market value.</div>`}<button class="quiet-button button-wide" style="margin-top:12px" data-action="run-retail-research" data-item-id="${escapeHtml(item.id)}" type="button">${retail?.sources?.length ? "Refresh retail price check" : "Check current retail price"}</button></section>`;
+}
+
 function analysisTier(title, entries, emptyText) {
   const list = Array.isArray(entries) ? entries : [];
   return `<div class="analysis-tier"><h3>${escapeHtml(title)}</h3>${list.length ? `<ul>${list.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")}</ul>` : `<p>${escapeHtml(emptyText)}</p>`}</div>`;
@@ -667,6 +796,7 @@ function openInstallModal() {
 }
 
 function closeModal() {
+  stopBarcodeScanner();
   modalRoot.innerHTML = "";
 }
 
@@ -728,10 +858,158 @@ async function runItemAnalysis(item) {
     item.aiModel = result.model;
     item.lastAiAt = new Date().toISOString();
     await saveAndRefresh(item, "AI evaluation complete and saved.");
+    await runMarketResearch(item, "valuation", true);
   } catch (error) {
     showToast(error.message || "The AI evaluation could not be completed.");
   } finally {
     hideLoading();
+  }
+}
+
+async function runMarketResearch(item, purpose = "valuation", quiet = false) {
+  if (!quiet) showLoading(purpose === "retail" ? "Checking current retail references…" : "Checking grounded market sources…");
+  try {
+    const result = await requestAi({ mode: "market", prompt: buildMarketResearchPrompt(item, state.settings, purpose) });
+    const research = extractMarketEvidence(result.output, result.citations);
+    const entry = { ...research, purpose, checkedAt: new Date().toISOString(), model: result.model };
+    item.marketEvidence = purpose === "retail"
+      ? { ...(item.marketEvidence || {}), retail: entry }
+      : { ...(item.marketEvidence || {}), ...entry };
+    await saveAndRefresh(item, quiet ? "Evaluation and grounded market evidence saved." : "Grounded market evidence saved.");
+  } catch (error) {
+    const current = item.marketEvidence || {};
+    item.marketEvidence = purpose === "retail"
+      ? { ...current, retail: { error: error.message || "Retail research could not be completed.", checkedAt: new Date().toISOString() } }
+      : { ...current, error: error.message || "Market research could not be completed.", checkedAt: new Date().toISOString() };
+    await saveAndRefresh(item, quiet ? "Evaluation saved; market evidence was unavailable." : "Market evidence was unavailable. Try again later.");
+  } finally {
+    if (!quiet) hideLoading();
+  }
+}
+
+async function runQuickLookup({ barcode = "", query = "" }) {
+  const normalized = normalizeBarcode(barcode);
+  if (normalized && !isSupportedBarcode(normalized)) {
+    state.quickLookup = { match: false, barcodeType: "barcode" };
+    render();
+    showToast("Use a UPC-A, UPC-E, EAN-8, EAN-13 or ISBN code.");
+    return;
+  }
+  const item = { name: query.trim(), barcode: normalized, source: "Quick lookup", conditionNotes: "Condition not assessed" };
+  showLoading("Looking up product information…");
+  try {
+    const result = await requestAi({ mode: "market", prompt: buildMarketResearchPrompt(item, state.settings, "barcode") });
+    const research = extractMarketEvidence(result.output, result.citations);
+    const product = research.product || {};
+    state.quickLookup = {
+      match: Boolean(product.name || product.brand || product.model) && (research.sources || []).length > 0,
+      barcode: normalized,
+      barcodeType: normalized ? barcodeType(normalized) : "Text search",
+      product,
+      summary: research.summary,
+      research
+    };
+    render();
+  } catch (error) {
+    state.quickLookup = { match: false, barcode: normalized, barcodeType: normalized ? barcodeType(normalized) : "Text search" };
+    render();
+    showToast(error.message || "Product lookup could not be completed.");
+  } finally {
+    hideLoading();
+  }
+}
+
+function continueFromQuickLookup() {
+  const result = state.quickLookup;
+  if (result?.match) {
+    state.draftForm = {
+      ...state.draftForm,
+      name: result.product?.name || state.draftForm.name || "",
+      brand: result.product?.brand || state.draftForm.brand || "",
+      model: result.product?.model || state.draftForm.model || "",
+      category: result.product?.category || state.draftForm.category || "",
+      barcode: result.barcode || state.draftForm.barcode || "",
+      conditionNotes: "Condition not assessed — add photos and inspect before buying."
+    };
+  }
+  state.quickLookup = null;
+  render();
+  document.querySelector(".capture-stage")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function stopBarcodeScanner() {
+  const scanner = state.barcodeScanner;
+  if (scanner?.stream) scanner.stream.getTracks().forEach((track) => track.stop());
+  if (scanner?.frame) cancelAnimationFrame(scanner.frame);
+  state.barcodeScanner = null;
+}
+
+async function openBarcodeScanner() {
+  const Detector = window.BarcodeDetector;
+  if (!Detector || !navigator.mediaDevices?.getUserMedia) {
+    modalRoot.innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal-sheet" role="dialog" aria-modal="true" data-modal-sheet><div class="modal-handle"></div><p class="eyebrow">Barcode scanner</p><h2>Use manual entry on this device</h2><p>This browser does not provide a compatible on-device barcode scanner. Enter the UPC, EAN or ISBN above, or continue with photos.</p><button class="primary-button button-wide" data-action="close-modal" type="button">Use manual entry</button></section></div>`;
+    return;
+  }
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal-sheet barcode-modal" role="dialog" aria-modal="true" aria-labelledby="barcode-title" data-modal-sheet><div class="modal-handle"></div><p class="eyebrow">Quick lookup</p><h2 id="barcode-title">Point camera at barcode</h2><p>Keep the full UPC, EAN or ISBN in the frame. Product condition is not assessed.</p><video id="barcode-video" playsinline muted></video><p id="barcode-scanner-status" class="notice">Starting camera…</p><button class="secondary-button button-wide" data-action="close-modal" type="button">Cancel</button></section></div>`;
+  try {
+    const supported = typeof Detector.getSupportedFormats === "function" ? await Detector.getSupportedFormats() : [];
+    const formats = BARCODE_FORMATS.filter((format) => supported.length === 0 || supported.includes(format)).filter((format) => !format.startsWith("isbn_"));
+    const detector = new Detector(formats.length ? { formats } : undefined);
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+    const video = document.querySelector("#barcode-video");
+    if (!video) throw new Error("Scanner view closed.");
+    video.srcObject = stream;
+    await video.play();
+    const status = document.querySelector("#barcode-scanner-status");
+    if (status) status.textContent = "Scanning…";
+    state.barcodeScanner = { stream, frame: null };
+    const scan = async () => {
+      if (!state.barcodeScanner || video.readyState < 2) return;
+      try {
+        const found = await detector.detect(video);
+        const code = normalizeBarcode(found?.[0]?.rawValue);
+        if (code && isSupportedBarcode(code)) {
+          stopBarcodeScanner();
+          modalRoot.innerHTML = "";
+          await runQuickLookup({ barcode: code });
+          return;
+        }
+      } catch {
+        // Keep scanning; a blurry frame is normal.
+      }
+      if (state.barcodeScanner) state.barcodeScanner.frame = requestAnimationFrame(scan);
+    };
+    scan();
+  } catch (error) {
+    stopBarcodeScanner();
+    const status = document.querySelector("#barcode-scanner-status");
+    if (status) status.textContent = "Camera access was unavailable. Use manual barcode entry instead.";
+  }
+}
+
+async function generateListing(item) {
+  showLoading("Writing an honest listing draft…");
+  try {
+    const result = await requestAi({ mode: "listing", prompt: buildListingPrompt(item, state.settings), photos: item.photos || [] });
+    const listing = extractListingJson(result.output);
+    item.listing = { ...(item.listing || {}), ...listing, generatedAt: new Date().toISOString(), model: result.model };
+    await saveAndRefresh(item, "Listing draft saved to this project.");
+  } catch (error) {
+    showToast(error.message || "The listing draft could not be generated.");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function copyListing(item) {
+  const listing = item.listing || {};
+  const text = [listing.title, "", listing.description].filter((part) => String(part || "").trim()).join("\n");
+  if (!text) return showToast("Generate or save a listing first.");
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Listing copied. Paste it into the marketplace yourself.");
+  } catch {
+    showToast("Copy was blocked by this browser. Select the text and copy it manually.");
   }
 }
 
@@ -768,7 +1046,7 @@ async function handleEvaluateSubmit(form, submitter) {
   const item = {
     id: createId(),
     name: values.name.trim(),
-    category: "",
+    category: state.draftForm.category || "",
     source: values.source,
     askingPrice: numberValue(values.askingPrice),
     purchasePrice: "",
@@ -777,6 +1055,7 @@ async function handleEvaluateSubmit(form, submitter) {
     sellerDescription: values.sellerDescription.trim(),
     brand: values.brand.trim(),
     model: values.model.trim(),
+    barcode: normalizeBarcode(values.barcode),
     dimensions: values.dimensions.trim(),
     conditionNotes: values.conditionNotes.trim(),
     question: values.question.trim(),
@@ -785,6 +1064,8 @@ async function handleEvaluateSubmit(form, submitter) {
     photos: [...state.draftPhotos],
     expenses: [],
     aiHistory: [],
+    marketEvidence: null,
+    listing: { title: "", description: "", photoGuidance: [], askingPrice: "", platformId: "facebook-local", manualFee: "", shipping: 0, otherCosts: 0, scenario: "conservative" },
     salePrice: "",
     hoursSpent: 0,
     createdAt: now,
@@ -793,6 +1074,7 @@ async function handleEvaluateSubmit(form, submitter) {
   await saveItem(item);
   state.items = sortItems([item, ...state.items]);
   state.draftPhotos = [];
+  state.draftForm = {};
   navigate(`item/${encodeURIComponent(item.id)}`);
   if (submitter?.value === "analysis") {
     setTimeout(() => runItemAnalysis(item), 120);
@@ -959,6 +1241,53 @@ document.addEventListener("click", async (event) => {
   } else if (action === "run-analysis") {
     const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
     if (item) await runItemAnalysis(item);
+  } else if (action === "open-barcode-scanner") {
+    await openBarcodeScanner();
+  } else if (action === "clear-quick-lookup") {
+    state.quickLookup = null;
+    render();
+  } else if (action === "continue-full-evaluation") {
+    continueFromQuickLookup();
+  } else if (action === "run-market-research") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) await runMarketResearch(item);
+  } else if (action === "run-retail-research") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) await runMarketResearch(item, "retail");
+  } else if (action === "generate-listing") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) await generateListing(item);
+  } else if (action === "copy-listing") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) await copyListing(item);
+  } else if (action === "improve-photos") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) await askItemAi(item, buildQuickActionPrompt(item, "photos", state.settings), "Improve listing photos");
+  } else if (action === "set-cover-photo") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) {
+      item.listing = { ...(item.listing || {}), coverPhotoId: button.dataset.photoId };
+      await saveAndRefresh(item, "Cover photo updated.");
+    }
+  } else if (action === "move-listing-photo") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) {
+      const index = (item.photos || []).findIndex((photo) => photo.id === button.dataset.photoId);
+      const target = index + numberValue(button.dataset.direction);
+      if (index >= 0 && target >= 0 && target < item.photos.length) {
+        const photos = [...item.photos];
+        [photos[index], photos[target]] = [photos[target], photos[index]];
+        item.photos = photos;
+        await saveAndRefresh(item, "Listing photo order updated.");
+      }
+    }
+  } else if (action === "remove-project-photo") {
+    const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
+    if (item) {
+      item.photos = (item.photos || []).filter((photo) => photo.id !== button.dataset.photoId);
+      if (item.listing?.coverPhotoId === button.dataset.photoId) item.listing.coverPhotoId = item.photos[0]?.id || "";
+      await saveAndRefresh(item, "Photo removed from this project.");
+    }
   } else if (action === "quick-ai") {
     const item = state.items.find((candidate) => candidate.id === button.dataset.itemId);
     const label = QUICK_ACTIONS.find(([key]) => key === button.dataset.promptAction)?.[1] || "Ask about this item";
@@ -998,8 +1327,43 @@ document.addEventListener("submit", async (event) => {
   const form = event.target;
   event.preventDefault();
   try {
-    if (form.id === "evaluate-form") {
+    if (form.id === "manual-barcode-form") {
+      const values = formValues(form);
+      if (!String(values.barcode || "").trim()) throw new Error("Enter a barcode first.");
+      await runQuickLookup({ barcode: values.barcode });
+    } else if (form.id === "text-lookup-form") {
+      const values = formValues(form);
+      if (!String(values.query || "").trim()) throw new Error("Enter a brand, model or product first.");
+      await runQuickLookup({ query: values.query });
+    } else if (form.id === "evaluate-form") {
       await handleEvaluateSubmit(form, event.submitter);
+    } else if (form.id === "profit-calculator-form") {
+      const item = state.items.find((candidate) => candidate.id === form.dataset.itemId);
+      if (!item) return;
+      const values = formValues(form);
+      item.calculator = {
+        ...(item.calculator || {}),
+        scenario: values.scenario || "conservative",
+        purchasePrice: values.purchasePrice === "" ? "" : numberValue(values.purchasePrice),
+        salePrice: values.salePrice === "" ? "" : numberValue(values.salePrice),
+        platformId: values.platformId || "facebook-local",
+        shipping: numberValue(values.shipping),
+        otherCosts: numberValue(values.otherCosts),
+        manualFee: values.manualFee === "" ? "" : numberValue(values.manualFee)
+      };
+      await saveAndRefresh(item, "Profit calculation updated.");
+    } else if (form.id === "listing-form") {
+      const item = state.items.find((candidate) => candidate.id === form.dataset.itemId);
+      if (!item) return;
+      const values = formValues(form);
+      item.listing = {
+        ...(item.listing || {}),
+        title: values.title.trim(),
+        description: values.description.trim(),
+        askingPrice: values.askingPrice === "" ? "" : numberValue(values.askingPrice),
+        savedAt: new Date().toISOString()
+      };
+      await saveAndRefresh(item, "Listing saved to this project.");
     } else if (form.id === "project-form") {
       const item = state.items.find((candidate) => candidate.id === form.dataset.itemId);
       if (!item) return;
