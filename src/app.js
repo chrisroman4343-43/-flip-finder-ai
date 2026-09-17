@@ -30,7 +30,7 @@ import {
   numberValue,
   personalizedDecision
 } from "./logic.js";
-import { requestAi } from "./ai.js";
+import { requestAi } from "./ai.js?v=11";
 import {
   BARCODE_FORMATS,
   barcodeType,
