@@ -88,7 +88,7 @@ test("the free AI integration keeps credentials out of public code", async () =>
   const client = await readFile(resolve(root, "src/ai.js"), "utf8");
   const server = await readFile(resolve(root, "netlify/functions/ai.mts"), "utf8");
   const ignore = await readFile(resolve(root, ".gitignore"), "utf8");
-  assert.match(client, /https:\/\/flip-finder-ai-api\.netlify\.app\/api\/ai/);
+  assert.match(client, /const DEFAULT_ENDPOINT = "\/api\/ai"/);
   assert.match(server, /Netlify\.env\.get\("GEMINI_API_KEY"\)/);
   assert.match(server, /gemini-3\.6-flash/);
   assert.doesNotMatch(`${client}\n${server}`, /(github_pat_|AIza)[A-Za-z0-9_-]{20,}/);
