@@ -32,7 +32,7 @@ test("the app loads no third-party scripts or styles", async () => {
   const html = await readFile(resolve(root, "index.html"), "utf8");
   assert.doesNotMatch(html, /<(script|link)[^>]+https?:\/\//i);
   assert.match(html, /styles\.css\?v=10/);
-  assert.match(html, /src\/app\.js\?v=10/);
+  assert.match(html, /src\/app\.js\?v=11/);
 });
 
 test("the Evaluate mobile flow reserves safe space and exposes source scrolling", async () => {
@@ -95,7 +95,7 @@ test("the free AI integration keeps credentials out of public code", async () =>
   const ignore = await readFile(resolve(root, ".gitignore"), "utf8");
   assert.match(client, /const DEFAULT_ENDPOINT = "\/api\/ai"/);
   assert.match(server, /Netlify\.env\.get\("GEMINI_API_KEY"\)/);
-  assert.match(server, /gemini-3\.6-flash/);
+  assert.match(server, /gemini-2\.5-flash/);
   assert.doesNotMatch(`${client}\n${server}`, /(github_pat_|AIza)[A-Za-z0-9_-]{20,}/);
   assert.match(ignore, /^\.env$/m);
 });
