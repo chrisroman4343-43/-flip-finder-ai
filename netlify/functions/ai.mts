@@ -102,10 +102,10 @@ export default async (request: Request, context: Context) => {
   const systemInstruction = "You are Flip Finder AI, a conservative Canadian resale-flipping assistant. Work with any item category. Clearly separate visible facts from possibilities, never invent comparable sales, use conservative local used-market estimates, preserve collectible features, disclose defects, and avoid unsafe repair advice. The app itself calculates the user's final buying verdict from fixed profit rules, so never override those rules. For normal local cash Facebook Marketplace/Kijiji sales, platform fees are zero unless the user supplies a real fee. Do not invent fuel costs or live sold listings.";
 
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
     const upstream = await fetch(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemInstruction }] },
         contents: [{ role: "user", parts }],
