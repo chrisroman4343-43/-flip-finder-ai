@@ -73,7 +73,7 @@ await page.route("**/api/ai", async (route) => {
           : body.mode === "listing"
             ? JSON.stringify({ title: "Wrought-Iron Coffee Table — Glass Insert Missing", description: "Coffee table with missing glass insert. Please see photos and ask for dimensions.", photoGuidance: ["Photograph the empty glass recess close-up."] })
             : "Check the structure, odour, moisture, pests and original markings before buying.",
-      model: "gemini-3.6-flash",
+      model: "gemini-2.5-flash",
       remaining: 149,
       citations: body.mode === "market" && !body.prompt.includes("012345678905") ? [{ title: "Active listing", url: "https://example.com/coffee-table" }] : []
     })
