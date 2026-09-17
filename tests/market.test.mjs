@@ -8,6 +8,7 @@ import {
 } from "../src/logic.js";
 import {
   barcodeType,
+  calculatorCostDefaults,
   calculatePlatformQuote,
   isSupportedBarcode,
   normalizeBarcode,
@@ -50,6 +51,16 @@ test("profit quotes keep local cash fees at zero and require a real online fee",
   assert.equal(shipped.netProfit, null);
   const confirmedFee = calculatePlatformQuote({ platformId: "ebay-ca", salePrice: 100, purchasePrice: 20, shipping: 15, manualFee: 13 });
   assert.equal(confirmedFee.netProfit, 52);
+});
+
+test("calculator defaults include AI-estimated direct costs", () => {
+  const defaults = calculatorCostDefaults({
+    askingPrice: 0,
+    purchasePrice: "",
+    expenses: [],
+    analysis: { cleaningCost: 5, repairCost: 15, transportCost: 5, platformFees: 0 }
+  });
+  assert.deepEqual(defaults, { otherCosts: 25, manualFee: "" });
 });
 
 test("platform recommendations preserve bulky-local and small-shippable distinctions", () => {

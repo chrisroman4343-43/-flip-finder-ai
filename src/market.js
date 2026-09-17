@@ -1,4 +1,13 @@
-import { formatMoney, numberValue } from "./logic.js";
+import { calculateFinancials, formatMoney, numberValue } from "./logic.js";
+
+export function calculatorCostDefaults(item) {
+  const financials = calculateFinancials(item);
+  const fees = Math.max(0, numberValue(item.analysis?.platformFees));
+  return {
+    otherCosts: Math.max(0, financials.expectedInvestment - financials.purchasePrice - fees),
+    manualFee: fees > 0 ? fees : ""
+  };
+}
 
 export const BARCODE_FORMATS = Object.freeze([
   "upc_a", "upc_e", "ean_8", "ean_13", "isbn_10", "isbn_13"

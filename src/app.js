@@ -31,6 +31,7 @@ import {
 } from "./logic.js";
 import { requestAi } from "./ai.js?v=11";
 import {
+  calculatorCostDefaults,
   calculateFlipScore,
   calculatePlatformQuote,
   formatQuoteMoney,
@@ -655,16 +656,18 @@ function maximumBuyPriceFromQuote(quote, item) {
   const hours = numberValue(item.analysis?.estimatedHours);
   const byProfit = quote.takeHome - quote.otherCosts - numberValue(state.settings.minimumProfit);
   const byHourly = hours > 0 ? quote.takeHome - quote.otherCosts - numberValue(state.settings.minimumHourly) * hours : Infinity;
-  const byCap = numberValue(state.settings.maxInvestment) - quote.otherCosts;
+  const byCap = numberValue(state.settings.maxInvestment) - quote.otherCosts - quote.shipping - quote.fees;
   return Math.max(0, Math.min(byProfit, byHourly, byCap));
 }
 
 function renderProfitCalculator(item, financials) {
   const saved = item.calculator || {};
+  const defaults = calculatorCostDefaults(item);
   const scenario = saved.scenario || "conservative";
   const salePrice = saved.salePrice === "" || saved.salePrice === undefined ? calculatorSalePrice(item, financials, scenario) : numberValue(saved.salePrice);
   const purchasePrice = saved.purchasePrice === "" || saved.purchasePrice === undefined ? (item.purchasePrice === "" ? item.askingPrice : item.purchasePrice) : numberValue(saved.purchasePrice);
-  const quote = calculatePlatformQuote({ platformId: saved.platformId || "facebook-local", salePrice, purchasePrice, shipping: saved.shipping || 0, otherCosts: saved.otherCosts || 0, manualFee: saved.manualFee });
+  const manualFee = saved.manualFee ?? defaults.manualFee;
+  const quote = calculatePlatformQuote({ platformId: saved.platformId || "facebook-local", salePrice, purchasePrice, shipping: saved.shipping || 0, otherCosts: saved.otherCosts ?? defaults.otherCosts, manualFee });
   const maximumBuy = maximumBuyPriceFromQuote(quote, item);
   return `<section class="card profit-calculator-card">
     <div class="card-head"><div><p class="eyebrow">Profit calculator</p><h2>What is it worth to you?</h2><p>Uses the same locked profit, hourly and investment rules as the verdict.</p></div></div>
@@ -678,7 +681,7 @@ function renderProfitCalculator(item, financials) {
         <label class="field"><span>Platform</span><select name="platformId">${recommendedPlatforms(item).map(({ platform }) => `<option value="${escapeHtml(platform.id)}" ${quote.platform.id === platform.id ? "selected" : ""}>${escapeHtml(platform.name)} · ${escapeHtml(platform.saleMode)}</option>`).join("")}</select></label>
         <label class="field"><span>Shipping you pay</span><div class="price-wrap"><input name="shipping" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(quote.shipping)}" /></div></label>
         <label class="field"><span>Other direct costs</span><div class="price-wrap"><input name="otherCosts" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(quote.otherCosts)}" /></div></label>
-        <label class="field"><span>Platform fee ${quote.platform.percentage === null ? "(enter current amount)" : ""}</span><div class="price-wrap"><input name="manualFee" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(saved.manualFee ?? "")}" placeholder="${quote.platform.percentage === null ? "Required for online quote" : "0"}" /></div></label>
+        <label class="field"><span>Platform fee ${quote.platform.percentage === null ? "(enter current amount)" : ""}</span><div class="price-wrap"><input name="manualFee" type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(manualFee)}" placeholder="${quote.platform.percentage === null ? "Required for online quote" : "0"}" /></div></label>
       </div>
       <p class="calculator-fee-note">${escapeHtml(quote.platform.feeNote)} Fee estimates — confirm current platform rates before listing.</p>
       <div class="calculator-result">
@@ -692,9 +695,10 @@ function renderProfitCalculator(item, financials) {
 
 function renderPlatformComparison(item, financials) {
   const saved = item.calculator || {};
+  const defaults = calculatorCostDefaults(item);
   const salePrice = saved.salePrice === "" || saved.salePrice === undefined ? financials.resaleLow : numberValue(saved.salePrice);
   const purchase = saved.purchasePrice === "" || saved.purchasePrice === undefined ? (item.purchasePrice === "" ? item.askingPrice : item.purchasePrice) : numberValue(saved.purchasePrice);
-  return `<section class="card platform-card"><div class="card-head"><div><p class="eyebrow">Where should I sell this?</p><h2>Platform comparison</h2><p>Local is favoured for bulky items; shipping only makes sense when the evidence and costs support it.</p></div></div><div class="platform-list">${recommendedPlatforms(item).map(({ platform, fit }) => { const quote = calculatePlatformQuote({ platformId: platform.id, salePrice, purchasePrice: purchase, shipping: platform.saleMode === "Local pickup" ? 0 : numberValue(saved.shipping), otherCosts: numberValue(saved.otherCosts), manualFee: saved.platformId === platform.id ? saved.manualFee : "" }); return `<div class="platform-row"><div><strong>${escapeHtml(platform.name)}</strong><span>${escapeHtml(platform.saleMode)} · ${escapeHtml(fit)}</span></div><div><small>${quote.fees === null ? "Fee estimate unavailable" : `Fee ${formatMoney(quote.fees)}`}</small><strong>${quote.takeHome === null ? "Fee required" : `${formatMoney(quote.takeHome)} take-home`}</strong></div></div>`; }).join("")}</div></section>`;
+  return `<section class="card platform-card"><div class="card-head"><div><p class="eyebrow">Where should I sell this?</p><h2>Platform comparison</h2><p>Local is favoured for bulky items; shipping only makes sense when the evidence and costs support it.</p></div></div><div class="platform-list">${recommendedPlatforms(item).map(({ platform, fit }) => { const quote = calculatePlatformQuote({ platformId: platform.id, salePrice, purchasePrice: purchase, shipping: platform.saleMode === "Local pickup" ? 0 : numberValue(saved.shipping), otherCosts: saved.otherCosts ?? defaults.otherCosts, manualFee: saved.platformId === platform.id ? saved.manualFee : (platform.percentage === null ? "" : defaults.manualFee) }); return `<div class="platform-row"><div><strong>${escapeHtml(platform.name)}</strong><span>${escapeHtml(platform.saleMode)} · ${escapeHtml(fit)}</span></div><div><small>${quote.fees === null ? "Fee estimate unavailable" : `Fee ${formatMoney(quote.fees)}`}</small><strong>${quote.netProfit === null ? "Fee required" : `${formatMoney(quote.netProfit)} profit`}</strong></div></div>`; }).join("")}</div></section>`;
 }
 
 function renderListingWorkspace(item) {
