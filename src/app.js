@@ -14,6 +14,7 @@ import {
   SOURCES,
   STAGES,
   buildAnalysisPrompt,
+  buildBarcodeReadPrompt,
   buildListingPrompt,
   buildMarketResearchPrompt,
   buildQuickActionPrompt,
@@ -385,10 +386,9 @@ function renderEvaluate() {
       <div class="card-head"><div><p class="eyebrow">Fast intake</p><h2>Quick product lookup</h2><p>Use a barcode or text to identify a retail item first. Condition still needs photos or an in-person check.</p></div></div>
       <div class="quick-intake-actions">
         <button class="quick-intake-button" data-action="open-barcode-scanner" type="button">Scan barcode</button>
-        <form id="manual-barcode-form" class="quick-inline-form"><label class="sr-only" for="manual-barcode">UPC, EAN or ISBN barcode</label><input id="manual-barcode" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Enter UPC, EAN or ISBN" /><button class="quiet-button" type="submit">Look up</button></form>
         <form id="text-lookup-form" class="quick-inline-form"><label class="sr-only" for="text-lookup">Search by text</label><input id="text-lookup" name="query" autocomplete="off" placeholder="Search brand, model or product" /><button class="quiet-button" type="submit">Search</button></form>
       </div>
-      <p class="quick-lookup-note">Supports UPC-A, UPC-E, EAN-8, EAN-13 and ISBN. Barcode lookup identifies the product only — it never confirms condition or completeness.</p>
+      <p class="quick-lookup-note">Supports UPC-A, UPC-E, EAN-8, EAN-13 and ISBN. On iPhone, Scan barcode opens the rear camera for a barcode photo. Product condition is never assumed.</p>
       ${renderQuickLookupResult()}
     </section>
     <form id="evaluate-form">
@@ -426,7 +426,7 @@ function renderEvaluate() {
           <label class="field"><span>Dimensions</span><input name="dimensions" placeholder="Example: 24 × 18 × 36 in" value="${escapeHtml(draft.dimensions || "")}" /></label>
           <label class="field"><span>Brand</span><input name="brand" placeholder="If visible" value="${escapeHtml(draft.brand || "")}" /></label>
           <label class="field"><span>Model number</span><input name="model" placeholder="If visible" value="${escapeHtml(draft.model || "")}" /></label>
-          <label class="field"><span>Barcode</span><input name="barcode" inputmode="numeric" autocomplete="off" placeholder="UPC, EAN or ISBN" value="${escapeHtml(draft.barcode || "")}" /></label>
+          ${draft.barcode ? `<div class="field"><span>Scanned barcode</span><strong>${escapeHtml(draft.barcode)}</strong><input name="barcode" type="hidden" value="${escapeHtml(draft.barcode)}" /></div>` : ""}
         </div>
         <div class="field-grid" style="margin-top:13px">
           <label class="field"><span>Seller description</span><textarea name="sellerDescription" placeholder="Paste the listing description here">${escapeHtml(draft.sellerDescription || "")}</textarea></label>
@@ -449,7 +449,7 @@ function renderEvaluate() {
 function renderQuickLookupResult() {
   const result = state.quickLookup;
   if (!result) return "";
-  if (!result.match) return `<div class="quick-lookup-result no-match"><strong>No reliable product match found for this ${escapeHtml(result.barcodeType || "search")}.</strong><p>Try again, enter the barcode manually, search by text, or continue with photos for a full evaluation.</p><div class="button-row"><button class="secondary-button" data-action="clear-quick-lookup" type="button">Try again</button><button class="quiet-button" data-action="continue-full-evaluation" type="button">Evaluate with photos</button></div></div>`;
+  if (!result.match) return `<div class="quick-lookup-result no-match"><strong>No reliable product match found for this ${escapeHtml(result.barcodeType || "search")}.</strong><p>Scan the barcode again, search by text, or continue with photos for a full evaluation.</p><div class="button-row"><button class="secondary-button" data-action="open-barcode-scanner" type="button">Scan again</button><button class="quiet-button" data-action="continue-full-evaluation" type="button">Evaluate with photos</button></div></div>`;
   const product = result.product || {};
   return `<div class="quick-lookup-result"><span class="lookup-status">Product match found</span><strong>${escapeHtml(product.name || "Matched product")}</strong>${[product.brand, product.model, product.category].filter(Boolean).length ? `<p>${escapeHtml([product.brand, product.model, product.category].filter(Boolean).join(" · "))}</p>` : ""}<div class="notice warn">Condition not assessed — visual confirmation required.</div><p>${escapeHtml(result.summary || "Continue with photos and condition details before making a buying decision.")}</p><div class="button-row"><button class="primary-button" data-action="continue-full-evaluation" type="button">Continue with photos</button><button class="quiet-button" data-action="clear-quick-lookup" type="button">Clear</button></div></div>`;
 }
@@ -944,10 +944,39 @@ function stopBarcodeScanner() {
   state.barcodeScanner = null;
 }
 
+function barcodePhotoFallback(message = "Your browser does not support live barcode detection. Photograph the full barcode and Flip Finder will read it automatically.") {
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal-sheet barcode-modal" role="dialog" aria-modal="true" aria-labelledby="barcode-photo-title" data-modal-sheet><div class="modal-handle"></div><p class="eyebrow">Barcode scanner</p><h2 id="barcode-photo-title">Photograph the barcode</h2><p>${escapeHtml(message)}</p><label class="primary-button button-wide barcode-photo-capture" for="barcode-photo-input">Open rear camera<input id="barcode-photo-input" type="file" accept="image/*" capture="environment" /></label><p id="barcode-scanner-status" class="notice">Keep the full barcode and every printed digit sharp and inside the frame.</p><button class="secondary-button button-wide" data-action="close-modal" type="button">Cancel</button></section></div>`;
+}
+
+async function readBarcodePhoto(file) {
+  if (!file?.type?.startsWith("image/")) {
+    showToast("Take a clear photo of the barcode.");
+    return;
+  }
+  showLoading("Reading barcode from photo…");
+  try {
+    const dataUrl = await compressImage(file, 1600, 0.84);
+    const result = await requestAi({ mode: "analysis", prompt: buildBarcodeReadPrompt(), photos: [dataUrl] });
+    const text = String(result.output || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    const parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    const code = normalizeBarcode(parsed?.barcode);
+    if (!code || !isSupportedBarcode(code)) throw new Error("The full barcode was not readable. Retake it closer, in bright light, with every digit visible.");
+    stopBarcodeScanner();
+    modalRoot.innerHTML = "";
+    await runQuickLookup({ barcode: code });
+  } catch (error) {
+    const message = error instanceof SyntaxError ? "The barcode could not be read. Retake it closer with every digit visible." : error.message;
+    barcodePhotoFallback(message || "The barcode could not be read. Retake the photo.");
+    showToast(message || "The barcode could not be read.");
+  } finally {
+    hideLoading();
+  }
+}
+
 async function openBarcodeScanner() {
   const Detector = window.BarcodeDetector;
   if (!Detector || !navigator.mediaDevices?.getUserMedia) {
-    modalRoot.innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal-sheet" role="dialog" aria-modal="true" data-modal-sheet><div class="modal-handle"></div><p class="eyebrow">Barcode scanner</p><h2>Use manual entry on this device</h2><p>This browser does not provide a compatible on-device barcode scanner. Enter the UPC, EAN or ISBN above, or continue with photos.</p><button class="primary-button button-wide" data-action="close-modal" type="button">Use manual entry</button></section></div>`;
+    barcodePhotoFallback();
     return;
   }
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal-sheet barcode-modal" role="dialog" aria-modal="true" aria-labelledby="barcode-title" data-modal-sheet><div class="modal-handle"></div><p class="eyebrow">Quick lookup</p><h2 id="barcode-title">Point camera at barcode</h2><p>Keep the full UPC, EAN or ISBN in the frame. Product condition is not assessed.</p><video id="barcode-video" playsinline muted></video><p id="barcode-scanner-status" class="notice">Starting camera…</p><button class="secondary-button button-wide" data-action="close-modal" type="button">Cancel</button></section></div>`;
@@ -982,8 +1011,7 @@ async function openBarcodeScanner() {
     scan();
   } catch (error) {
     stopBarcodeScanner();
-    const status = document.querySelector("#barcode-scanner-status");
-    if (status) status.textContent = "Camera access was unavailable. Use manual barcode entry instead.";
+    barcodePhotoFallback("Live scanning was unavailable. Take one clear barcode photo instead.");
   }
 }
 
@@ -1327,11 +1355,7 @@ document.addEventListener("submit", async (event) => {
   const form = event.target;
   event.preventDefault();
   try {
-    if (form.id === "manual-barcode-form") {
-      const values = formValues(form);
-      if (!String(values.barcode || "").trim()) throw new Error("Enter a barcode first.");
-      await runQuickLookup({ barcode: values.barcode });
-    } else if (form.id === "text-lookup-form") {
+    if (form.id === "text-lookup-form") {
       const values = formValues(form);
       if (!String(values.query || "").trim()) throw new Error("Enter a brand, model or product first.");
       await runQuickLookup({ query: values.query });
@@ -1426,7 +1450,10 @@ document.addEventListener("submit", async (event) => {
 
 document.addEventListener("change", async (event) => {
   const input = event.target;
-  if (input.matches("[data-photo-input]")) {
+  if (input.id === "barcode-photo-input" && input.files?.[0]) {
+    await readBarcodePhoto(input.files[0]);
+    input.value = "";
+  } else if (input.matches("[data-photo-input]")) {
     await processPhotoFiles(input.files, input.dataset.photoInput, input.dataset.itemId);
     input.value = "";
   } else if (input.id === "backup-input" && input.files?.[0]) {
