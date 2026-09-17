@@ -13,9 +13,8 @@ import {
   normalizeBarcode,
   recommendedPlatforms
 } from "../src/market.js";
-import { buildBarcodeReadPrompt } from "../src/logic.js";
 
-test("barcode intake normalizes supported UPC, EAN and ISBN entries", () => {
+test("legacy barcode helpers normalize supported UPC, EAN and ISBN entries", () => {
   assert.equal(normalizeBarcode(" 0-12345-67890-5 "), "012345678905");
   assert.equal(barcodeType("012345678905"), "UPC-A");
   assert.equal(barcodeType("978-1-4028-9462-6"), "ISBN-13 / EAN-13");
@@ -23,12 +22,6 @@ test("barcode intake normalizes supported UPC, EAN and ISBN entries", () => {
   assert.equal(isSupportedBarcode("not a barcode"), false);
 });
 
-test("barcode photo fallback asks for exact machine-readable JSON without guessing", () => {
-  const prompt = buildBarcodeReadPrompt();
-  assert.match(prompt, /BARCODE PHOTO READER/);
-  assert.match(prompt, /Return JSON only/);
-  assert.match(prompt, /Do not identify the product, guess missing digits/);
-});
 
 test("market evidence keeps only cited direct claims and permits labelled inference", () => {
   const evidence = extractMarketEvidence(JSON.stringify({

@@ -2155,10 +2155,9 @@ input, textarea, select { min-height: 48px; font-size: 16px; border-radius: 11px
   }
 }
 
-/* Barcode, market and listing tools: compact extensions of the existing dark PEI workflow. */
+/* Market and listing tools: compact extensions of the existing dark PEI workflow. */
 .quick-lookup-card { margin: 0 0 16px; padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(135deg, rgba(157,204,150,.06), transparent 55%), var(--surface); }
 .quick-intake-actions { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 16px; }
-.quick-intake-button { min-height: 54px; border: 1px solid rgba(157,204,150,.28); border-radius: 13px; background: rgba(157,204,150,.1); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
 .quick-inline-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .quick-inline-form .quiet-button { min-height: 48px; padding-inline: 13px; }
 .quick-lookup-note, .calculator-fee-note { margin: 12px 0 0; color: var(--faint); font-size: .73rem; line-height: 1.55; }
@@ -2167,9 +2166,6 @@ input, textarea, select { min-height: 48px; font-size: 16px; border-radius: 11px
 .quick-lookup-result > strong { font-size: 1rem; }
 .quick-lookup-result > p { margin: 0; color: var(--muted); line-height: 1.55; }
 .lookup-status { color: var(--profit); font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-.barcode-modal video { width: 100%; min-height: 220px; margin: 12px 0; border-radius: 15px; background: #050605; object-fit: cover; }
-.barcode-photo-capture { position: relative; margin: 18px 0 10px; cursor: pointer; }
-.barcode-photo-capture input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .flip-score-card { display: flex; align-items: stretch; justify-content: space-between; gap: 20px; margin: 0 0 16px; padding: 20px; border: 1px solid rgba(225,181,100,.24); border-radius: 20px; background: linear-gradient(125deg, rgba(225,181,100,.09), rgba(18,21,18,.8)); }
 .flip-score-card p { margin: 7px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }

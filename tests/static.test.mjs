@@ -31,8 +31,8 @@ test("manifest icons and core PWA files exist", async () => {
 test("the app loads no third-party scripts or styles", async () => {
   const html = await readFile(resolve(root, "index.html"), "utf8");
   assert.doesNotMatch(html, /<(script|link)[^>]+https?:\/\//i);
-  assert.match(html, /styles\.css\?v=10/);
-  assert.match(html, /src\/app\.js\?v=11/);
+  assert.match(html, /styles\.css\?v=12/);
+  assert.match(html, /src\/app\.js\?v=12/);
 });
 
 test("the Evaluate mobile flow reserves safe space and exposes source scrolling", async () => {
@@ -75,10 +75,9 @@ test("the scoped reseller tools have clear entry, evidence, calculator and listi
     readFile(resolve(root, "src/market.js"), "utf8"),
     readFile(resolve(root, "netlify/functions/ai.mts"), "utf8")
   ]);
-  assert.match(app, /Scan barcode/);
-  assert.match(app, /id="barcode-photo-input"[^>]+capture="environment"/);
-  assert.match(app, /Reading barcode from photo/);
-  assert.doesNotMatch(app, /Use manual entry on this device/);
+  assert.doesNotMatch(app, /barcode|BarcodeDetector|open-barcode-scanner/);
+  assert.match(app, /id="camera-input"[^>]+capture="environment"/);
+  assert.match(app, /id="text-lookup-form"/);
   assert.match(app, /No reliable product match found/);
   assert.match(app, /Condition not assessed — visual confirmation required/);
   assert.match(app, /Market evidence/);
@@ -95,7 +94,7 @@ test("the free AI integration keeps credentials out of public code", async () =>
   const ignore = await readFile(resolve(root, ".gitignore"), "utf8");
   assert.match(client, /const DEFAULT_ENDPOINT = "\/api\/ai"/);
   assert.match(server, /Netlify\.env\.get\("GEMINI_API_KEY"\)/);
-  assert.match(server, /gemini-2\.5-flash/);
+  assert.match(server, /gemini-3\.6-flash/);
   assert.doesNotMatch(`${client}\n${server}`, /(github_pat_|AIza)[A-Za-z0-9_-]{20,}/);
   assert.match(ignore, /^\.env$/m);
 });
