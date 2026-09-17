@@ -65,7 +65,9 @@ await page.route("**/api/ai", async (route) => {
     contentType: "application/json",
     body: JSON.stringify({
       output: body.mode === "analysis"
-        ? JSON.stringify(result)
+        ? body.prompt.includes("BARCODE PHOTO READER")
+          ? JSON.stringify({ barcode: "012345678905" })
+          : JSON.stringify(result)
         : body.mode === "market"
           ? JSON.stringify(body.prompt.includes("012345678905") ? { ...market, product: {}, evidence: [], summary: "No reliable product reference was found." } : market)
           : body.mode === "listing"
@@ -87,10 +89,8 @@ await page.getByRole("link", { name: /Start an evaluation/ }).click();
 assert.equal(await page.locator(".source-chip-row").evaluate((row) => row.scrollWidth > row.clientWidth), true);
 assert.equal(await page.locator(".source-scroll-affordance").isVisible(), true);
 await page.getByRole("button", { name: "Scan barcode" }).click();
-await page.getByText(/manual entry on this device/i).waitFor();
-await page.getByRole("button", { name: "Use manual entry" }).click();
-await page.getByLabel("UPC, EAN or ISBN barcode").fill("012345678905");
-await page.getByRole("button", { name: "Look up" }).click();
+await page.getByRole("heading", { name: "Photograph the barcode" }).waitFor();
+await page.locator("#barcode-photo-input").setInputFiles("assets/icon-512.png");
 await page.getByText(/No reliable product match found/).waitFor();
 await page.getByRole("button", { name: "Evaluate with photos" }).click();
 await page.getByLabel("Add listing screenshots").setInputFiles("assets/icon-512.png");
