@@ -1,4 +1,7 @@
-const DEFAULT_ENDPOINT = "https://flip-finder-ai-api.netlify.app/api/ai";
+// Keep the browser request on the same Netlify deployment. This lets production,
+// deploy previews, and branch previews each reach their own server-side AI function
+// without crossing origins (which browsers correctly protect with CORS).
+const DEFAULT_ENDPOINT = "/api/ai";
 const MAX_PHOTOS = 4;
 
 function cleanPhotos(photos = []) {
@@ -47,8 +50,9 @@ export async function requestAi({ mode, prompt, photos = [] }) {
 
     return {
       output: payload.output,
-      model: payload.model || "Gemini 3.6 Flash",
-      remaining: payload.remaining ?? null
+      model: payload.model || "Gemini 2.5 Flash",
+      remaining: payload.remaining ?? null,
+      citations: Array.isArray(payload.citations) ? payload.citations : []
     };
   } catch (error) {
     if (error.name === "AbortError") {

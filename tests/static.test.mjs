@@ -20,6 +20,7 @@ test("manifest icons and core PWA files exist", async () => {
     "src/ai.js",
     "src/db.js",
     "src/logic.js",
+    "src/market.js",
     "netlify.toml",
     "netlify/functions/ai.mts",
     ...manifest.icons.map((icon) => icon.src.replace(/^\.\//, ""))
@@ -30,6 +31,8 @@ test("manifest icons and core PWA files exist", async () => {
 test("the app loads no third-party scripts or styles", async () => {
   const html = await readFile(resolve(root, "index.html"), "utf8");
   assert.doesNotMatch(html, /<(script|link)[^>]+https?:\/\//i);
+  assert.match(html, /styles\.css\?v=12/);
+  assert.match(html, /src\/app\.js\?v=12/);
 });
 
 test("the Evaluate mobile flow reserves safe space and exposes source scrolling", async () => {
@@ -66,11 +69,30 @@ test("evaluation results label confidence, seller ask and work explicitly", asyn
   assert.match(prompt, /"workItems"/);
 });
 
+test("the scoped reseller tools have clear entry, evidence, calculator and listing states", async () => {
+  const [app, market, server] = await Promise.all([
+    readFile(resolve(root, "src/app.js"), "utf8"),
+    readFile(resolve(root, "src/market.js"), "utf8"),
+    readFile(resolve(root, "netlify/functions/ai.mts"), "utf8")
+  ]);
+  assert.doesNotMatch(app, /barcode|BarcodeDetector|open-barcode-scanner/);
+  assert.match(app, /id="camera-input"[^>]+capture="environment"/);
+  assert.match(app, /id="text-lookup-form"/);
+  assert.match(app, /No reliable product match found/);
+  assert.match(app, /Condition not assessed — visual confirmation required/);
+  assert.match(app, /Market evidence/);
+  assert.match(app, /Profit calculator/);
+  assert.match(app, /Listing toolkit/);
+  assert.match(app, /Improve photos/);
+  assert.match(market, /manual-required/);
+  assert.match(server, /google_search/);
+});
+
 test("the free AI integration keeps credentials out of public code", async () => {
   const client = await readFile(resolve(root, "src/ai.js"), "utf8");
   const server = await readFile(resolve(root, "netlify/functions/ai.mts"), "utf8");
   const ignore = await readFile(resolve(root, ".gitignore"), "utf8");
-  assert.match(client, /https:\/\/flip-finder-ai-api\.netlify\.app\/api\/ai/);
+  assert.match(client, /const DEFAULT_ENDPOINT = "\/api\/ai"/);
   assert.match(server, /Netlify\.env\.get\("GEMINI_API_KEY"\)/);
   assert.match(server, /gemini-3\.6-flash/);
   assert.doesNotMatch(`${client}\n${server}`, /(github_pat_|AIza)[A-Za-z0-9_-]{20,}/);
