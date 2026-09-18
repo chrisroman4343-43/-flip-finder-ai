@@ -1,6 +1,8 @@
 import type { Config, Context } from "@netlify/functions";
 
-const MODEL = "gemini-3.6-flash";
+const PRIMARY_MODEL = "gemini-3.6-flash";
+const FALLBACK_MODEL = "gemini-3.1-flash-lite";
+const RETRYABLE_UPSTREAM_STATUSES = new Set([429, 500, 502, 503, 504]);
 const MAX_BODY_BYTES = 5_500_000;
 const MAX_PROMPT_LENGTH = 30_000;
 const MAX_PHOTOS = 4;
@@ -59,6 +61,27 @@ function interactionOutput(result: any) {
     .trim();
 }
 
+async function requestGemini(apiKey: string, bodyForModel: (model: string) => unknown) {
+  const endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
+  let lastAttempt: { upstream: Response; result: any; model: string } | null = null;
+
+  for (const model of [PRIMARY_MODEL, FALLBACK_MODEL]) {
+    const upstream = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(bodyForModel(model))
+    });
+    const result = await upstream.json().catch(() => ({}));
+    lastAttempt = { upstream, result, model };
+
+    if (upstream.ok || !RETRYABLE_UPSTREAM_STATUSES.has(upstream.status) || model === FALLBACK_MODEL) {
+      return lastAttempt;
+    }
+  }
+
+  return lastAttempt!;
+}
+
 export default async (request: Request, context: Context) => {
   const origin = allowedOrigin(request);
   if (origin === null) return json({ error: "This app address is not allowed." }, 403);
@@ -86,20 +109,19 @@ export default async (request: Request, context: Context) => {
 
   if (mode === "market") {
     try {
-      const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({ model: MODEL, input: prompt, tools: [{ type: "google_search" }] })
-      });
-      const result = await upstream.json().catch(() => ({}));
+      const { upstream, result, model } = await requestGemini(apiKey, (candidateModel) => ({
+        model: candidateModel,
+        input: prompt,
+        tools: [{ type: "google_search" }]
+      }));
       if (!upstream.ok) {
         const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : upstreamError(result, "Market research could not be completed.");
         return json({ error: message }, upstream.status === 429 ? 429 : 502, cors);
       }
       const grounded = groundedOutput(result);
       if (!grounded.output) return json({ error: "Market research returned no usable result." }, 502, cors);
-      console.log(JSON.stringify({ requestId: context.requestId, mode, model: MODEL, citations: grounded.citations.length, status: "ok" }));
-      return json({ ...grounded, model: MODEL, remaining: null }, 200, cors);
+      console.log(JSON.stringify({ requestId: context.requestId, mode, model, citations: grounded.citations.length, fallback: model === FALLBACK_MODEL, status: "ok" }));
+      return json({ ...grounded, model, remaining: null }, 200, cors);
     } catch (error) {
       console.error(JSON.stringify({ requestId: context.requestId, mode, status: "failed", message: error instanceof Error ? error.message : "unknown" }));
       return json({ error: "Market research could not be reached. Try again shortly." }, 502, cors);
@@ -117,31 +139,25 @@ export default async (request: Request, context: Context) => {
   const systemInstruction = "You are Flip Finder AI, a conservative Canadian resale-flipping assistant. Work with any item category. Clearly separate visible facts from possibilities, never invent comparable sales, use conservative local used-market estimates, preserve collectible features, disclose defects, and avoid unsafe repair advice. The app itself calculates the user's final buying verdict from fixed profit rules, so never override those rules. For normal local cash Facebook Marketplace/Kijiji sales, platform fees are zero unless the user supplies a real fee. Do not invent fuel costs or live sold listings.";
 
   try {
-    const endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
-    const upstream = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        model: MODEL,
-        store: false,
-        system_instruction: systemInstruction,
-        input: parts,
-        generation_config: {
-          temperature: mode === "analysis" ? 0.15 : 0.35,
-          max_output_tokens: mode === "analysis" || mode === "listing" ? 2400 : 1800
-        },
-        ...(mode === "analysis" || mode === "listing" ? { response_format: { type: "text", mime_type: "application/json" } } : {})
-      })
-    });
-    const result = await upstream.json().catch(() => ({}));
+    const { upstream, result, model } = await requestGemini(apiKey, (candidateModel) => ({
+      model: candidateModel,
+      store: false,
+      system_instruction: systemInstruction,
+      input: parts,
+      generation_config: {
+        temperature: mode === "analysis" ? 0.15 : 0.35,
+        max_output_tokens: mode === "analysis" || mode === "listing" ? 2400 : 1800
+      },
+      ...(mode === "analysis" || mode === "listing" ? { response_format: { type: "text", mime_type: "application/json" } } : {})
+    }));
     if (!upstream.ok) {
       const message = upstream.status === 429 ? "The free Gemini allowance has been reached for now. Try again later." : upstreamError(result, "Gemini could not complete this request.");
       return json({ error: message }, upstream.status === 429 ? 429 : 502, cors);
     }
     const output = interactionOutput(result);
     if (!output) return json({ error: "The AI returned an empty response." }, 502, cors);
-    console.log(JSON.stringify({ requestId: context.requestId, mode, model: MODEL, photos: photos.length, status: "ok" }));
-    return json({ output, model: MODEL, remaining: null }, 200, cors);
+    console.log(JSON.stringify({ requestId: context.requestId, mode, model, photos: photos.length, fallback: model === FALLBACK_MODEL, status: "ok" }));
+    return json({ output, model, remaining: null }, 200, cors);
   } catch (error) {
     console.error(JSON.stringify({ requestId: context.requestId, mode, status: "failed", message: error instanceof Error ? error.message : "unknown" }));
     return json({ error: "The free AI service could not be reached. Try again shortly." }, 502, cors);
