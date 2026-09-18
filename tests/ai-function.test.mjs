@@ -40,6 +40,7 @@ test("AI endpoint calls Gemini without returning the secret", async () => {
     assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/interactions");
     assert.equal(options.headers["x-goog-api-key"], "private-test-key");
     const sent = JSON.parse(options.body);
+    assert.equal(sent.model, "gemini-3.6-flash");
     assert.equal(sent.input[0].text, "Evaluate this find");
     assert.equal(sent.system_instruction.includes("Flip Finder AI"), true);
     return new Response(JSON.stringify({ steps: [{ type: "model_output", content: [{ type: "text", text: '{"suggestedName":"Test item"}' }] }] }), {
@@ -54,6 +55,30 @@ test("AI endpoint calls Gemini without returning the secret", async () => {
   assert.equal(payload.output, '{"suggestedName":"Test item"}');
   assert.equal(payload.model, "gemini-3.6-flash");
   assert.doesNotMatch(JSON.stringify(payload), /private-test-key/);
+});
+
+test("AI endpoint retries temporary overloads on Gemini Flash-Lite", async () => {
+  setEnvironment({ GEMINI_API_KEY: "private-test-key" });
+  const models = [];
+  globalThis.fetch = async (_url, options) => {
+    const sent = JSON.parse(options.body);
+    models.push(sent.model);
+    if (sent.model === "gemini-3.6-flash") {
+      return new Response(JSON.stringify({
+        error: { code: 503, message: "Model is currently experiencing high demand.", status: "UNAVAILABLE" }
+      }), { status: 503, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify({
+      steps: [{ type: "model_output", content: [{ type: "text", text: '{"suggestedName":"Fallback item"}' }] }]
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+
+  const response = await aiHandler(request({ mode: "analysis", prompt: "Evaluate fallback", photos: [] }), { requestId: "test-fallback" });
+  const payload = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(payload.output, '{"suggestedName":"Fallback item"}');
+  assert.equal(payload.model, "gemini-3.1-flash-lite");
+  assert.deepEqual(models, ["gemini-3.6-flash", "gemini-3.1-flash-lite"]);
 });
 
 test("AI endpoint rejects unsupported image data before calling the model", async () => {
