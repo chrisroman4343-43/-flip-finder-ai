@@ -95,6 +95,8 @@ test("the free AI integration keeps credentials out of public code", async () =>
   assert.match(client, /const DEFAULT_ENDPOINT = "\/api\/ai"/);
   assert.match(server, /Netlify\.env\.get\("GEMINI_API_KEY"\)/);
   assert.match(server, /gemini-3\.6-flash/);
+  assert.match(server, /gemini-3\.1-flash-lite/);
+  assert.match(server, /RETRYABLE_UPSTREAM_STATUSES/);
   assert.doesNotMatch(`${client}\n${server}`, /(github_pat_|AIza)[A-Za-z0-9_-]{20,}/);
   assert.match(ignore, /^\.env$/m);
 });
